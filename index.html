@@ -1,0 +1,466 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Flow ERP | Integra. Organiza. Faz sua empresa fluir.</title>
+    <meta name="description" content="Flow ERP integra setores, organiza processos e centraliza informações para empresas que precisam operar com clareza e produtividade.">
+    <link rel="icon" href="assets/flow-logo-branco.png">
+    <script>
+      (() => {
+        const savedTheme = localStorage.getItem("flow.erp.theme");
+        const prefersDark = window.matchMedia?.("(prefers-color-scheme: dark)").matches;
+        document.documentElement.dataset.theme = savedTheme || (prefersDark ? "dark" : "light");
+      })();
+    </script>
+    <link rel="stylesheet" href="styles.css?v=20260909-4">
+  </head>
+  <body>
+    <div class="app-shell">
+      <header class="site-header" data-header>
+        <a class="brand" href="#inicio" aria-label="Flow ERP">
+          <img src="assets/flow-logo.png" alt="Flow ERP">
+        </a>
+
+        <button class="icon-button menu-toggle" type="button" aria-label="Abrir menu" aria-expanded="false" data-menu-toggle>
+          <i data-lucide="menu"></i>
+        </button>
+
+        <nav class="main-nav" data-nav aria-label="Navegação principal">
+          <a href="#inicio">Início</a>
+          <a href="#solucoes">Soluções</a>
+          <a href="#funcionalidades">Funcionalidades</a>
+          <a href="#como-funciona">Como funciona</a>
+          <a href="#seguranca">Segurança</a>
+          <a href="#sobre">Sobre a Flow</a>
+        </nav>
+
+        <div class="header-actions">
+          <button class="icon-button theme-toggle" type="button" data-theme-toggle aria-label="Alternar tema" title="Alternar tema">
+            <i data-lucide="moon"></i>
+          </button>
+          <button class="text-button" type="button" data-view-link="login">Entrar</button>
+          <button class="text-button" type="button" data-view-link="employee-login">Acesso Funcionário</button>
+          <button class="primary-button" type="button" data-view-link="signup">
+            Cadastre-se
+          </button>
+        </div>
+      </header>
+
+      <main>
+        <section class="view active" id="marketing" data-view="marketing">
+          <section class="hero-section" id="inicio">
+            <div class="hero-orbit" aria-hidden="true">
+              <span></span>
+              <span></span>
+              <span></span>
+            </div>
+            <div class="hero-content reveal">
+              <p class="eyebrow">FLOW ERP</p>
+              <h1>Sua empresa integrada. Sua operação fluindo.</h1>
+              <p class="hero-copy">A Flow ERP conecta setores, organiza processos e centraliza informações para transformar a gestão da sua empresa em uma experiência mais simples, inteligente e eficiente.</p>
+              <div class="hero-actions">
+                <button class="primary-button large" type="button" data-scroll-target="pre-cadastro">
+                  Começar agora
+                </button>
+                <button class="secondary-button large" type="button" data-scroll-target="como-funciona">
+                  Conhecer a Flow
+                </button>
+              </div>
+              <div class="trust-strip" aria-label="Indicadores da plataforma">
+                <span><strong>+32%</strong> produtividade</span>
+                <span><strong>1 fluxo</strong> para todos os setores</span>
+                <span><strong>LGPD</strong> estrutura de consentimento</span>
+              </div>
+            </div>
+
+            <div class="hero-visual reveal delay-1" aria-label="Mockup visual de dashboard Flow ERP">
+              <div class="floating-chip chip-sales">
+                Vendas +18%
+              </div>
+              <div class="floating-chip chip-users">
+                RH integrado
+              </div>
+              <div class="floating-chip chip-docs">
+                24 docs
+              </div>
+              <div class="dashboard-3d">
+                <div class="dashboard-topbar">
+                  <span></span>
+                  <span></span>
+                  <span></span>
+                  <strong>Flow Command Center</strong>
+                </div>
+                <div class="dashboard-grid">
+                  <article class="metric-tile">
+                    <span>Faturamento</span>
+                    <strong>R$ 428 mil</strong>
+                    <div class="sparkline up"></div>
+                  </article>
+                  <article class="metric-tile">
+                    <span>Estoque</span>
+                    <strong>8.421 itens</strong>
+                    <div class="sparkline stable"></div>
+                  </article>
+                  <article class="metric-tile">
+                    <span>Clientes</span>
+                    <strong>1.284</strong>
+                    <div class="sparkline up"></div>
+                  </article>
+                    <strong>37 abertas</strong>
+                    <div class="sparkline warn"></div>
+                  </article>
+                  <article class="chart-panel wide">
+                    <div class="panel-head">
+                      <span>Receita por setor</span>
+                      <small>tempo real</small>
+                    </div>
+                    <div class="bar-chart" aria-hidden="true">
+                      <span style="--h: 54%"></span>
+                      <span style="--h: 72%"></span>
+                      <span style="--h: 45%"></span>
+                      <span style="--h: 88%"></span>
+                      <span style="--h: 63%"></span>
+                      <span style="--h: 78%"></span>
+                    </div>
+                  </article>
+                  <article class="workflow-panel">
+                    <span>Integrações ativas</span>
+                    <div class="mini-flow">
+                      <span>Financeiro</span>
+                      <span>Vendas</span>
+                      <span>RH</span>
+                      <span>Estoque</span>
+                    </div>
+                  </article>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <section class="concept-section flow-band" id="como-funciona">
+            <div class="section-copy reveal">
+              <p class="eyebrow">Integração operacional</p>
+              <h2>Tudo conectado em um só fluxo</h2>
+              <p>A Flow ERP foi desenvolvida para eliminar a desorganização causada por sistemas isolados, planilhas espalhadas e informações descentralizadas.</p>
+              <p>Com a Flow, diferentes setores podem trabalhar de maneira integrada, permitindo que as informações circulem de forma mais rápida, organizada e inteligente.</p>
+            </div>
+            <div class="connected-flow reveal delay-1" aria-label="Setores conectados">
+              <div class="flow-symbol">
+                <img src="assets/flow-logo.png" alt="">
+              </div>
+              <ol>
+                <li>Financeiro</li>
+                <li>Comercial</li>
+                <li>RH</li>
+                <li>Operações</li>
+                <li>Estoque</li>
+                <li>Gestão</li>
+              </ol>
+            </div>
+          </section>
+
+          <section class="features-section" id="funcionalidades">
+            <div class="section-title reveal">
+              <p class="eyebrow">Funcionalidades</p>
+              <h2>Tudo que sua empresa precisa para fluir melhor.</h2>
+              <p>Recursos organizados para equipes que precisam enxergar a operação inteira sem perder velocidade nas rotinas do dia a dia.</p>
+            </div>
+            <div class="feature-grid">
+              <article class="feature-card reveal"><span class="feature-label">FIN</span><h3>Financeiro</h3><p>Controle financeiro, fluxo de caixa, contas a pagar, contas a receber e indicadores para acompanhar a saúde da empresa.</p></article>
+              <article class="feature-card reveal"><span class="feature-label">COM</span><h3>Vendas</h3><p>Organização de clientes, oportunidades, propostas e acompanhamento comercial com visão clara do funil.</p></article>
+              <article class="feature-card reveal"><span class="feature-label">RH</span><h3>Funcionários</h3><p>Informações dos colaboradores, documentos, processos internos e dados da equipe centralizados.</p></article>
+              <article class="feature-card reveal"><span class="feature-label">EST</span><h3>Estoque</h3><p>Controle de produtos, entradas, saídas, movimentações e disponibilidade operacional.</p></article>
+              <article class="feature-card reveal"><span class="feature-label">BI</span><h3>Indicadores</h3><p>Visualização dos principais números da empresa em tempo real, com leitura rápida para a gestão.</p></article>
+              <article class="feature-card reveal"><span class="feature-label">REL</span><h3>Relatórios</h3><p>Relatórios para apoiar decisões estratégicas e transformar dados em orientação prática.</p></article>
+            </div>
+          </section>
+
+          <section class="product-section" id="solucoes">
+            <div class="section-copy reveal">
+              <p class="eyebrow">Visão executiva</p>
+              <h2>Uma visão completa da sua empresa.</h2>
+              <p>Transforme dados espalhados em informações úteis para tomar decisões melhores.</p>
+            </div>
+            <div class="product-dashboard reveal delay-1">
+              <div class="product-toolbar">
+                <div>
+                  <strong>Dashboard empresarial</strong>
+                  <span>Dados consolidados por área</span>
+                </div>
+                <div class="segmented" role="tablist" aria-label="Filtro de período">
+                  <button class="active" type="button">Hoje</button>
+                  <button type="button">7 dias</button>
+                  <button type="button">30 dias</button>
+                  <button type="button">Este ano</button>
+                </div>
+              </div>
+              <div class="kpi-row">
+                <article><span>Receita</span><strong>R$ 842.900</strong><small>+14,2%</small></article>
+                <article><span>Despesas</span><strong>R$ 316.400</strong><small>-4,8%</small></article>
+                <article><span>Lucro</span><strong>R$ 526.500</strong><small>+21,6%</small></article>
+                <article><span>Clientes</span><strong>1.284</strong><small>+38</small></article>
+              </div>
+              <div class="analytics-layout">
+                <canvas id="revenueChart" width="720" height="260" aria-label="Gráfico de comparativo financeiro"></canvas>
+                <aside class="notifications-panel">
+                  <h3>Notificações</h3>
+                  <p>3 contas a receber vencem hoje.</p>
+                  <p>12 produtos estão abaixo do estoque mínimo.</p>
+                </aside>
+              </div>
+            </div>
+          </section>
+
+          <section class="security-section" id="seguranca">
+            <div class="security-visual reveal" aria-hidden="true">
+              <div class="security-core"><span>LGPD</span></div>
+              <span class="node n1">Acesso</span>
+              <span class="node n2">Dados</span>
+              <span class="node n3">Logs</span>
+              <span class="node n4">Privacidade</span>
+            </div>
+            <div class="section-copy reveal delay-1">
+              <p class="eyebrow">Governança</p>
+              <h2>Segurança em cada etapa.</h2>
+              <p>A gestão empresarial depende de informações importantes. Por isso, a Flow foi pensada para trabalhar com segurança, controle de acesso e organização dos dados.</p>
+              <div class="security-list">
+                <span>Controle de permissões</span>
+                <span>Autenticação</span>
+                <span>Proteção de dados</span>
+                <span>Gerenciamento de usuários</span>
+                <span>Logs de atividades</span>
+                <span>Privacidade</span>
+              </div>
+            </div>
+          </section>
+
+          <section class="signup-section" id="pre-cadastro">
+            <div class="section-copy reveal">
+              <p class="eyebrow">Pré-cadastro</p>
+              <h2>Comece a construir uma empresa mais organizada.</h2>
+              <p>Faça seu pré-cadastro e receba acesso às próximas etapas da plataforma Flow ERP.</p>
+              <p class="privacy-note">Seus dados são tratados com segurança e utilizados exclusivamente para as finalidades informadas pela Flow ERP, respeitando a legislação brasileira de proteção de dados.</p>
+              <div class="privacy-links">
+                <button type="button" data-policy="privacy">Política de Privacidade</button>
+                <button type="button" data-policy="terms">Termos de Uso</button>
+                <button type="button" data-policy="cookies">Política de Cookies</button>
+                <button type="button" data-policy="central">Central de Privacidade</button>
+              </div>
+            </div>
+            <form class="lead-form reveal delay-1" data-form="lead" novalidate>
+              <div class="form-grid">
+                <label>Nome completo<input name="fullName" autocomplete="name" required></label>
+                <label>E-mail<input name="email" type="email" autocomplete="email" required></label>
+                <label>Telefone<input name="phone" inputmode="tel" required></label>
+                <label>Nome da empresa<input name="company" required></label>
+                <label>CNPJ<input name="cnpj" inputmode="numeric" required></label>
+                <label>Cargo<input name="role" required></label>
+                <label>Quantidade de colaboradores<select name="employees" required><option value="">Selecione</option><option>1 a 10</option><option>11 a 50</option><option>51 a 200</option><option>201+</option></select></label>
+                <label>Segmento da empresa<input name="segment" required></label>
+                <label>Cidade<input name="city" required></label>
+                <label>Estado<select name="state" required><option value="">UF</option><option>AC</option><option>AL</option><option>AP</option><option>AM</option><option>BA</option><option>CE</option><option>DF</option><option>ES</option><option>GO</option><option>MA</option><option>MT</option><option>MS</option><option>MG</option><option>PA</option><option>PB</option><option>PR</option><option>PE</option><option>PI</option><option>RJ</option><option>RN</option><option>RS</option><option>RO</option><option>RR</option><option>SC</option><option>SP</option><option>SE</option><option>TO</option></select></label>
+              </div>
+              <label class="checkbox-row">
+                <input name="consent" type="checkbox" required>
+                <span>Li e concordo com a Política de Privacidade e estou ciente do tratamento dos meus dados pessoais para as finalidades apresentadas.</span>
+              </label>
+              <input type="hidden" name="purpose" value="Pré-cadastro para acesso às próximas etapas da plataforma Flow ERP">
+              <div class="form-message" data-form-message="lead" aria-live="polite"></div>
+              <button class="primary-button full" type="submit">
+                Enviar pré-cadastro
+              </button>
+            </form>
+          </section>
+
+          <section class="about-section" id="sobre">
+            <div class="section-title reveal">
+              <p class="eyebrow">Sobre a Flow</p>
+              <h2>Integra. Organiza. Faz sua empresa fluir.</h2>
+              <p>A Flow ERP nasce para empresas que precisam crescer com processos claros, dados confiáveis e equipes trabalhando no mesmo ritmo. A plataforma organiza a operação sem transformar a rotina em burocracia.</p>
+            </div>
+          </section>
+        </section>
+
+        <section class="view auth-view" data-view="login" aria-label="Login Flow ERP">
+          <div class="auth-card">
+            <button class="icon-button back-home" type="button" data-view-link="marketing" aria-label="Voltar ao site"><i data-lucide="arrow-left"></i></button>
+            <button class="icon-button auth-theme-toggle" type="button" data-theme-toggle aria-label="Alternar tema" title="Alternar tema"><i data-lucide="moon"></i></button>
+            <img src="assets/flow-logo.png" alt="Flow ERP">
+            <h1>Bem-vindo à Flow</h1>
+            <form data-form="login" novalidate>
+              <label>E-mail<input name="email" type="email" autocomplete="email" required></label>
+              <label>Senha<input name="password" type="password" autocomplete="current-password" required></label>
+              <div class="auth-options">
+                <label class="checkbox-row compact"><input name="remember" type="checkbox"><span>Lembrar acesso</span></label>
+                <button type="button">Esqueci minha senha</button>
+              </div>
+              <div class="form-message" data-form-message="login" aria-live="polite"></div>
+              <button class="primary-button full" type="submit">Entrar</button>
+            </form>
+            <p>Ainda não possui uma conta? <button type="button" data-view-link="signup">Cadastre-se</button></p>
+            <div class="auth-prep">
+              <span>2FA preparado</span>
+              <span>Sessões</span>
+              <span>Permissões</span>
+            </div>
+          </div>
+        </section>
+
+        <section class="view auth-view" data-view="signup" aria-label="Criação de conta Flow ERP">
+          <div class="auth-card wide-auth">
+            <button class="icon-button back-home" type="button" data-view-link="marketing" aria-label="Voltar ao site"><i data-lucide="arrow-left"></i></button>
+            <button class="icon-button auth-theme-toggle" type="button" data-theme-toggle aria-label="Alternar tema" title="Alternar tema"><i data-lucide="moon"></i></button>
+            <img src="assets/flow-logo.png" alt="Flow ERP">
+            <h1>Criar minha conta</h1>
+            <form data-form="signup" novalidate>
+              <div class="form-grid">
+                <label>Nome completo<input name="fullName" autocomplete="name" required></label>
+                <label>E-mail corporativo<input name="email" type="email" autocomplete="email" required></label>
+                <label>Telefone<input name="phone" inputmode="tel" required></label>
+                <label>Nome da empresa<input name="company" required></label>
+                <label>CNPJ<input name="cnpj" inputmode="numeric" required></label>
+                <label>Senha<input name="password" type="password" autocomplete="new-password" required></label>
+                <label>Confirmar senha<input name="confirmPassword" type="password" autocomplete="new-password" required></label>
+              </div>
+              <label class="checkbox-row"><input name="terms" type="checkbox" required><span>Aceito os Termos de Uso e estou ciente da Política de Privacidade.</span></label>
+              <div class="form-message" data-form-message="signup" aria-live="polite"></div>
+              <button class="primary-button full" type="submit">Criar minha conta</button>
+            </form>
+          </div>
+        </section>
+
+        <section class="view auth-view" data-view="employee-login" aria-label="Acesso do funcionário Flow ERP">
+          <div class="auth-card">
+            <button class="icon-button back-home" type="button" data-view-link="marketing" aria-label="Voltar ao site"><i data-lucide="arrow-left"></i></button>
+            <button class="icon-button auth-theme-toggle" type="button" data-theme-toggle aria-label="Alternar tema" title="Alternar tema"><i data-lucide="moon"></i></button>
+            <img src="assets/flow-logo.png" alt="Flow ERP">
+            <h1>Acesso Funcionário</h1>
+            <form data-form="employee-login" novalidate>
+              <label>CPF<input name="cpf" inputmode="numeric" autocomplete="username" required></label>
+              <label>Senha<input name="password" type="password" autocomplete="current-password" required></label>
+              <div class="form-message" data-form-message="employee-login" aria-live="polite"></div>
+              <button class="primary-button full" type="submit">Entrar</button>
+            </form>
+            <p>Primeiro acesso: use seu CPF e a senha inicial <strong>1234</strong>.</p>
+          </div>
+        </section>
+
+        <section class="view auth-view" data-view="employee-password" aria-label="Criar nova senha do funcionário">
+          <div class="auth-card">
+            <button class="icon-button auth-theme-toggle" type="button" data-theme-toggle aria-label="Alternar tema" title="Alternar tema"><i data-lucide="moon"></i></button>
+            <img src="assets/flow-logo.png" alt="Flow ERP">
+            <h1>Crie sua nova senha</h1>
+            <form data-form="employee-password" novalidate>
+              <label>Nova senha<input name="password" type="password" autocomplete="new-password" required></label>
+              <label>Confirmar senha<input name="confirmPassword" type="password" autocomplete="new-password" required></label>
+              <div class="form-message" data-form-message="employee-password" aria-live="polite"></div>
+              <button class="primary-button full" type="submit">Salvar nova senha</button>
+            </form>
+          </div>
+        </section>
+
+        <section class="view employee-portal" data-view="employee-portal" aria-label="Portal do funcionário Flow ERP">
+          <header class="employee-header">
+            <img src="assets/flow-logo.png" alt="Flow ERP">
+            <div>
+              <p>Portal do funcionário</p>
+              <h1>Olá, <span data-employee-name>colaborador</span></h1>
+            </div>
+            <div class="employee-actions">
+              <button class="icon-button theme-toggle" type="button" data-theme-toggle aria-label="Alternar tema" title="Alternar tema"><i data-lucide="moon"></i></button>
+              <button class="secondary-button" type="button" data-employee-logout>Sair</button>
+            </div>
+          </header>
+          <main class="employee-main" data-employee-portal-content></main>
+        </section>
+
+        <section class="view dashboard-app" data-view="dashboard" aria-label="Dashboard Flow ERP">
+          <aside class="erp-sidebar">
+            <img src="assets/flow-logo.png" alt="Flow ERP">
+            <nav aria-label="Módulos ERP" data-module-nav>
+              <button class="active" type="button" data-module="dashboard"><i data-lucide="layout-dashboard"></i>Dashboard</button>
+              <button type="button" data-module="financial"><i data-lucide="wallet"></i>Financeiro</button>
+              <button type="button" data-module="sales"><i data-lucide="shopping-cart"></i>Vendas</button>
+              <button type="button" data-module="clients"><i data-lucide="users"></i>Clientes</button>
+              <button type="button" data-module="employees"><i data-lucide="badge-check"></i>Funcionários</button>
+              <button type="button" data-module="attendance"><i data-lucide="calendar-clock"></i>Ponto Eletronico</button>
+              <button type="button" data-module="inventory"><i data-lucide="boxes"></i>Estoque</button>
+              <button type="button" data-module="reports"><i data-lucide="chart-no-axes-combined"></i>Relatórios</button>
+              <button type="button" data-module="settings"><i data-lucide="settings"></i>Configurações</button>
+            </nav>
+          </aside>
+          <div class="erp-main">
+            <header class="erp-topbar">
+              <div>
+                <p>Olá, <span data-user-name>Marina</span></p>
+                <h1 data-module-title>Tenha uma excelente gestão hoje.</h1>
+              </div>
+              <div class="erp-actions">
+                <button class="icon-button theme-toggle" type="button" data-theme-toggle aria-label="Alternar tema" title="Alternar tema"><i data-lucide="moon"></i></button>
+                <button class="icon-button" type="button" aria-label="Notificações" data-top-action="notifications"><i data-lucide="bell"></i></button>
+                <button class="icon-button" type="button" aria-label="Perfil" data-top-action="profile"><i data-lucide="circle-user-round"></i></button>
+                <button class="icon-button" type="button" aria-label="Configurações" data-module-shortcut="settings"><i data-lucide="settings"></i></button>
+              </div>
+            </header>
+            <section class="erp-kpis" data-dashboard-kpis>
+              <article><span>Faturamento</span><strong>R$ 428.320</strong><small>+12,4%</small></article>
+              <article><span>Despesas</span><strong>R$ 156.980</strong><small>-3,1%</small></article>
+              <article><span>Lucro</span><strong>R$ 271.340</strong><small>+18,8%</small></article>
+              <article><span>Clientes ativos</span><strong>1.284</strong><small>+42</small></article>
+              <article><span>Funcionários</span><strong>86</strong><small>5 áreas</small></article>
+            </section>
+            <section class="erp-content" data-module-content>
+              <div class="erp-chart">
+                <div class="panel-head"><span>Resultado operacional</span><small>comparativo mensal</small></div>
+                <canvas id="erpChart" width="780" height="300" aria-label="Gráfico interativo de resultado operacional"></canvas>
+              </div>
+              <aside class="erp-side-panel">
+                <h2>Rotina do dia</h2>
+                <div class="skeleton-row"></div>
+                <div class="skeleton-row short"></div>
+                <p><strong>Fechamento financeiro</strong><span>Em análise</span></p>
+                <p><strong>Propostas comerciais</strong><span>12 em negociação</span></p>
+                <p><strong>Solicitações LGPD</strong><span>2 em aberto</span></p>
+                <button class="secondary-button full" type="button" data-view-link="marketing"><i data-lucide="log-out"></i>Sair do demo</button>
+              </aside>
+            </section>
+          </div>
+        </section>
+      </main>
+
+      <footer class="site-footer">
+        <div>
+          <strong>FLOW ERP</strong>
+          <p>Integra. Organiza. Faz sua empresa fluir.</p>
+        </div>
+        <nav aria-label="Rodapé">
+          <a href="#sobre">Sobre</a>
+          <a href="#solucoes">Soluções</a>
+          <a href="#funcionalidades">Funcionalidades</a>
+          <a href="mailto:contato@flowerp.com.br">Contato</a>
+          <button type="button" data-policy="privacy">Política de Privacidade</button>
+          <button type="button" data-policy="terms">Termos de Uso</button>
+          <button type="button" data-policy="cookies">Cookies</button>
+          <button type="button" data-policy="central">Central de Privacidade</button>
+        </nav>
+        <span>© 2026 Flow ERP. Todos os direitos reservados.</span>
+      </footer>
+    </div>
+
+    <dialog class="policy-dialog" data-policy-dialog>
+      <button class="icon-button dialog-close" type="button" data-policy-close aria-label="Fechar"><i data-lucide="x"></i></button>
+      <h2 data-policy-title>Central de Privacidade</h2>
+      <div data-policy-content></div>
+    </dialog>
+
+    <dialog class="policy-dialog" data-app-dialog>
+      <button class="icon-button dialog-close" type="button" data-app-dialog-close aria-label="Fechar"><i data-lucide="x"></i></button>
+      <h2 data-app-dialog-title>Flow ERP</h2>
+      <div data-app-dialog-content></div>
+    </dialog>
+
+    <script src="assets/lucide.min.js?v=20260909-4"></script>
+    <script src="app.js?v=20260909-4"></script>
+  </body>
+</html>
