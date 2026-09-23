@@ -1911,6 +1911,14 @@ html[data-theme="dark"] .hero-section::after {
   background: linear-gradient(180deg, transparent, #08110e 76%);
 }
 
+html[data-theme="dark"] .features-section {
+  background: #08110e;
+}
+
+html[data-theme="dark"] .product-section {
+  background: linear-gradient(180deg, #0b1713, #08110e);
+}
+
 html[data-theme="dark"] .trust-strip,
 html[data-theme="dark"] .lead-form,
 html[data-theme="dark"] .auth-card,
