@@ -28,6 +28,9 @@
         .campo label { font-size: 14px; }
         .campo input { width: 100%; height: 38px; padding: 8px 10px; border: 1px solid #bdc9c1; border-radius: 3px; }
         .acoes { grid-column: 1 / -1; display: flex; gap: 9px; margin-top: 3px; }
+        .opcoes-usuario { display: flex; flex-wrap: wrap; gap: 12px; margin-bottom: 22px; }
+        .opcao-usuario { min-width: 180px; padding: 14px 18px; }
+        .formulario.usuario { max-width: 680px; }
         button { padding: 9px 16px; border: 0; border-radius: 3px; background: #087843; color: white; cursor: pointer; }
         button:hover { background: #075238; }
         button.secundario { background: #68766d; }
@@ -69,6 +72,7 @@
                 <a href="#inicio" data-pagina="inicio" class="ativo"><span class="icone">⌂</span>Início</a>
                 <a href="#consultas" data-pagina="consultas"><span class="icone">☷</span>Consultas</a>
                 <a href="#cadastros" data-pagina="cadastros"><span class="icone">♙</span>Cadastros</a>
+                <a href="#usuarios" data-pagina="usuarios"><span class="icone">♙</span>Criar usuário</a>
                 <a href="#relatorios" data-pagina="relatorios"><span class="icone">▤</span>Relatórios</a>
             </nav>
         </aside>
@@ -102,19 +106,42 @@
                     <div class="resultado" id="lista-cadastros"></div>
                 </div>
             </section>
+            <section class="conteudo" id="pagina-usuarios" hidden>
+                <div class="painel">
+                    <h1>Criar usuário</h1>
+                    <p class="vazio">Escolha o tipo de usuário que deseja cadastrar.</p>
+                    <div class="opcoes-usuario">
+                        <button type="button" class="opcao-usuario" id="escolher-empresa">Empresa</button>
+                        <button type="button" class="opcao-usuario secundario" id="escolher-funcionario">Funcionário</button>
+                    </div>
+                    <form class="formulario usuario" id="form-empresa" hidden>
+                        <div class="campo largo"><label for="empresa-nome">Nome da empresa</label><input id="empresa-nome" type="text" required autocomplete="organization"></div>
+                        <div class="campo"><label for="empresa-cnpj">CNPJ</label><input id="empresa-cnpj" type="text" required inputmode="numeric"></div>
+                        <div class="campo"><label for="empresa-email">E-mail</label><input id="empresa-email" type="email" required autocomplete="email"></div>
+                        <div class="acoes"><button type="submit">Criar empresa</button><button type="reset" class="secundario">Limpar</button></div>
+                    </form>
+                    <form class="formulario usuario" id="form-funcionario" hidden>
+                        <div class="campo largo"><label for="funcionario-nome">Nome completo</label><input id="funcionario-nome" type="text" required autocomplete="name"></div>
+                        <div class="campo"><label for="funcionario-email">E-mail</label><input id="funcionario-email" type="email" required autocomplete="email"></div>
+                        <div class="campo"><label for="funcionario-cargo">Cargo</label><input id="funcionario-cargo" type="text" required autocomplete="organization-title"></div>
+                        <div class="acoes"><button type="submit">Criar funcionário</button><button type="reset" class="secundario">Limpar</button></div>
+                    </form>
+                    <div class="mensagem" id="mensagem-usuario" aria-live="polite"></div>
+                </div>
+            </section>
             <section class="conteudo" id="pagina-relatorios" hidden>
                 <div class="painel"><h1>Relatórios</h1><p class="vazio">Use a consulta para localizar os registros cadastrados.</p><button type="button" id="relatorio-csv">Baixar relatório CSV</button><div class="mensagem" id="mensagem-relatorio"></div></div>
             </section>
         </main>
     </div>
     <script>
-        const paginas = ['inicio', 'consultas', 'cadastros', 'relatorios'];
+        const paginas = ['inicio', 'consultas', 'cadastros', 'usuarios', 'relatorios'];
         const titulo = document.getElementById('titulo-pagina');
         function abrirPagina(nome) {
             if (!paginas.includes(nome)) nome = 'inicio';
             paginas.forEach(p => document.getElementById('pagina-' + p).hidden = p !== nome);
             document.querySelectorAll('.menu nav a').forEach(a => a.classList.toggle('ativo', a.dataset.pagina === nome));
-            titulo.textContent = nome === 'cadastros' ? 'Cadastros' : nome.charAt(0).toUpperCase() + nome.slice(1);
+            titulo.textContent = nome === 'cadastros' ? 'Cadastros' : nome === 'usuarios' ? 'Criar usuário' : nome.charAt(0).toUpperCase() + nome.slice(1);
             history.replaceState(null, '', '#' + nome);
             if (nome === 'cadastros') desenharCadastros();
         }
@@ -125,6 +152,32 @@
         });
         function lerRegistros() { try { return JSON.parse(localStorage.getItem('flow-colaboradores') || '[]'); } catch (_) { return []; } }
         function gravarRegistros(registros) { localStorage.setItem('flow-colaboradores', JSON.stringify(registros)); }
+        function gravarUsuarios(usuario) {
+            const usuarios = JSON.parse(localStorage.getItem('flow-usuarios') || '[]');
+            usuarios.push(usuario);
+            localStorage.setItem('flow-usuarios', JSON.stringify(usuarios));
+        }
+        function mostrarFormularioUsuario(tipo) {
+            document.getElementById('form-empresa').hidden = tipo !== 'empresa';
+            document.getElementById('form-funcionario').hidden = tipo !== 'funcionario';
+            document.getElementById('escolher-empresa').className = tipo === 'empresa' ? 'opcao-usuario' : 'opcao-usuario secundario';
+            document.getElementById('escolher-funcionario').className = tipo === 'funcionario' ? 'opcao-usuario' : 'opcao-usuario secundario';
+            document.getElementById('mensagem-usuario').textContent = '';
+        }
+        document.getElementById('escolher-empresa').addEventListener('click', () => mostrarFormularioUsuario('empresa'));
+        document.getElementById('escolher-funcionario').addEventListener('click', () => mostrarFormularioUsuario('funcionario'));
+        document.getElementById('form-empresa').addEventListener('submit', e => {
+            e.preventDefault();
+            gravarUsuarios({ tipo: 'Empresa', nome: document.getElementById('empresa-nome').value.trim(), cnpj: document.getElementById('empresa-cnpj').value.trim(), email: document.getElementById('empresa-email').value.trim() });
+            document.getElementById('mensagem-usuario').textContent = 'Empresa criada neste navegador.';
+            e.target.reset();
+        });
+        document.getElementById('form-funcionario').addEventListener('submit', e => {
+            e.preventDefault();
+            gravarUsuarios({ tipo: 'Funcionário', nome: document.getElementById('funcionario-nome').value.trim(), email: document.getElementById('funcionario-email').value.trim(), cargo: document.getElementById('funcionario-cargo').value.trim() });
+            document.getElementById('mensagem-usuario').textContent = 'Funcionário criado neste navegador.';
+            e.target.reset();
+        });
         let statusSelecionado = 'Ativo';
         function escolherStatus(status) {
             statusSelecionado = status;
