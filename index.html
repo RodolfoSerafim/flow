@@ -73,6 +73,7 @@
                 <a href="#consultas" data-pagina="consultas"><span class="icone">☷</span>Consultas</a>
                 <a href="#cadastros" data-pagina="cadastros"><span class="icone">♙</span>Cadastros</a>
                 <a href="#usuarios" data-pagina="usuarios"><span class="icone">♙</span>Criar usuário</a>
+                <a href="#login" data-pagina="login"><span class="icone">→</span>Entrar</a>
                 <a href="#relatorios" data-pagina="relatorios"><span class="icone">▤</span>Relatórios</a>
             </nav>
         </aside>
@@ -118,6 +119,8 @@
                         <div class="campo largo"><label for="empresa-nome">Nome da empresa</label><input id="empresa-nome" type="text" required autocomplete="organization"></div>
                         <div class="campo"><label for="empresa-cnpj">CNPJ</label><input id="empresa-cnpj" type="text" required inputmode="numeric"></div>
                         <div class="campo"><label for="empresa-email">E-mail</label><input id="empresa-email" type="email" required autocomplete="email"></div>
+                        <div class="campo"><label for="empresa-login">Login</label><input id="empresa-login" type="text" required autocomplete="username"></div>
+                        <div class="campo"><label for="empresa-senha">Senha</label><input id="empresa-senha" type="password" required minlength="6" autocomplete="new-password"></div>
                         <div class="acoes"><button type="submit">Criar empresa</button><button type="reset" class="secundario">Limpar</button></div>
                     </form>
                     <form class="formulario usuario" id="form-funcionario" hidden>
@@ -129,13 +132,40 @@
                     <div class="mensagem" id="mensagem-usuario" aria-live="polite"></div>
                 </div>
             </section>
+            <section class="conteudo" id="pagina-login" hidden>
+                <div class="painel">
+                    <h1>Entrar na área da empresa</h1>
+                    <form class="formulario usuario" id="form-login">
+                        <div class="campo largo"><label for="login-usuario">Login</label><input id="login-usuario" type="text" required autocomplete="username"></div>
+                        <div class="campo largo"><label for="login-senha">Senha</label><input id="login-senha" type="password" required autocomplete="current-password"></div>
+                        <div class="acoes"><button type="submit">Entrar</button></div>
+                    </form>
+                    <div class="mensagem" id="mensagem-login" aria-live="polite"></div>
+                </div>
+            </section>
+            <section class="conteudo" id="pagina-empresa" hidden>
+                <div class="painel">
+                    <h1 id="empresa-titulo">Área da empresa</h1>
+                    <p class="vazio" id="empresa-login-info"></p>
+                    <h2>Funcionários</h2>
+                    <form class="formulario usuario" id="form-funcionario-empresa">
+                        <div class="campo largo"><label for="empresa-funcionario-nome">Nome completo</label><input id="empresa-funcionario-nome" type="text" required autocomplete="name"></div>
+                        <div class="campo"><label for="empresa-funcionario-email">E-mail</label><input id="empresa-funcionario-email" type="email" required autocomplete="email"></div>
+                        <div class="campo"><label for="empresa-funcionario-cargo">Cargo</label><input id="empresa-funcionario-cargo" type="text" required autocomplete="organization-title"></div>
+                        <div class="acoes"><button type="submit">Cadastrar funcionário</button><button type="reset" class="secundario">Limpar</button></div>
+                    </form>
+                    <div class="mensagem" id="mensagem-funcionario" aria-live="polite"></div>
+                    <div class="resultado" id="lista-funcionarios"></div>
+                    <button type="button" class="secundario" id="sair-empresa">Sair</button>
+                </div>
+            </section>
             <section class="conteudo" id="pagina-relatorios" hidden>
                 <div class="painel"><h1>Relatórios</h1><p class="vazio">Use a consulta para localizar os registros cadastrados.</p><button type="button" id="relatorio-csv">Baixar relatório CSV</button><div class="mensagem" id="mensagem-relatorio"></div></div>
             </section>
         </main>
     </div>
     <script>
-        const paginas = ['inicio', 'consultas', 'cadastros', 'usuarios', 'relatorios'];
+        const paginas = ['inicio', 'consultas', 'cadastros', 'usuarios', 'login', 'empresa', 'relatorios'];
         const titulo = document.getElementById('titulo-pagina');
         function abrirPagina(nome) {
             if (!paginas.includes(nome)) nome = 'inicio';
@@ -144,6 +174,7 @@
             titulo.textContent = nome === 'cadastros' ? 'Cadastros' : nome === 'usuarios' ? 'Criar usuário' : nome.charAt(0).toUpperCase() + nome.slice(1);
             history.replaceState(null, '', '#' + nome);
             if (nome === 'cadastros') desenharCadastros();
+            if (nome === 'empresa') desenharEmpresa();
         }
         document.querySelectorAll('.menu nav a').forEach(a => a.addEventListener('click', e => { e.preventDefault(); abrirPagina(a.dataset.pagina); }));
         document.getElementById('busca-menu').addEventListener('input', e => {
@@ -152,10 +183,19 @@
         });
         function lerRegistros() { try { return JSON.parse(localStorage.getItem('flow-colaboradores') || '[]'); } catch (_) { return []; } }
         function gravarRegistros(registros) { localStorage.setItem('flow-colaboradores', JSON.stringify(registros)); }
+        function lerUsuarios() { try { return JSON.parse(localStorage.getItem('flow-usuarios') || '[]'); } catch (_) { return []; } }
         function gravarUsuarios(usuario) {
             const usuarios = JSON.parse(localStorage.getItem('flow-usuarios') || '[]');
             usuarios.push(usuario);
             localStorage.setItem('flow-usuarios', JSON.stringify(usuarios));
+        }
+        function usuarioAtual() { return lerUsuarios().find(u => u.id === sessionStorage.getItem('flow-usuario-atual')); }
+        function entrarEmpresa(login, senha) {
+            const usuario = lerUsuarios().find(u => u.tipo === 'Empresa' && u.login === login && u.senha === senha);
+            if (!usuario) return false;
+            sessionStorage.setItem('flow-usuario-atual', usuario.id);
+            abrirPagina('empresa');
+            return true;
         }
         function mostrarFormularioUsuario(tipo) {
             document.getElementById('form-empresa').hidden = tipo !== 'empresa';
@@ -168,9 +208,12 @@
         document.getElementById('escolher-funcionario').addEventListener('click', () => mostrarFormularioUsuario('funcionario'));
         document.getElementById('form-empresa').addEventListener('submit', e => {
             e.preventDefault();
-            gravarUsuarios({ tipo: 'Empresa', nome: document.getElementById('empresa-nome').value.trim(), cnpj: document.getElementById('empresa-cnpj').value.trim(), email: document.getElementById('empresa-email').value.trim() });
-            document.getElementById('mensagem-usuario').textContent = 'Empresa criada neste navegador.';
+            const usuario = { id: String(Date.now()), tipo: 'Empresa', nome: document.getElementById('empresa-nome').value.trim(), cnpj: document.getElementById('empresa-cnpj').value.trim(), email: document.getElementById('empresa-email').value.trim(), login: document.getElementById('empresa-login').value.trim(), senha: document.getElementById('empresa-senha').value, funcionarios: [] };
+            if (lerUsuarios().some(u => u.login === usuario.login)) { document.getElementById('mensagem-usuario').textContent = 'Esse login já está em uso.'; return; }
+            gravarUsuarios(usuario);
+            sessionStorage.setItem('flow-usuario-atual', usuario.id);
             e.target.reset();
+            abrirPagina('empresa');
         });
         document.getElementById('form-funcionario').addEventListener('submit', e => {
             e.preventDefault();
@@ -178,6 +221,35 @@
             document.getElementById('mensagem-usuario').textContent = 'Funcionário criado neste navegador.';
             e.target.reset();
         });
+        document.getElementById('form-login').addEventListener('submit', e => {
+            e.preventDefault();
+            const entrou = entrarEmpresa(document.getElementById('login-usuario').value.trim(), document.getElementById('login-senha').value);
+            document.getElementById('mensagem-login').textContent = entrou ? '' : 'Login ou senha inválidos.';
+        });
+        function desenharEmpresa() {
+            const usuario = usuarioAtual();
+            if (!usuario) { abrirPagina('login'); return; }
+            document.getElementById('empresa-titulo').textContent = usuario.nome;
+            document.getElementById('empresa-login-info').textContent = 'Funcionários vinculados a esta empresa.';
+            const el = document.getElementById('lista-funcionarios');
+            if (!usuario.funcionarios.length) { el.innerHTML = '<p class="vazio">Nenhum funcionário cadastrado.</p>'; return; }
+            el.innerHTML = '<table class="lista"><thead><tr><th>Nome</th><th>E-mail</th><th>Cargo</th><th>Ação</th></tr></thead><tbody>' + usuario.funcionarios.map(f => `<tr><td>${escapar(f.nome)}</td><td>${escapar(f.email)}</td><td>${escapar(f.cargo)}</td><td><button type="button" class="perigo" data-excluir-funcionario="${f.id}">Excluir</button></td></tr>`).join('') + '</tbody></table>';
+            el.querySelectorAll('[data-excluir-funcionario]').forEach(b => b.addEventListener('click', () => {
+                const usuarios = lerUsuarios(); const conta = usuarios.find(u => u.id === usuario.id);
+                conta.funcionarios = conta.funcionarios.filter(f => f.id !== b.dataset.excluirFuncionario);
+                localStorage.setItem('flow-usuarios', JSON.stringify(usuarios)); desenharEmpresa();
+            }));
+        }
+        document.getElementById('form-funcionario-empresa').addEventListener('submit', e => {
+            e.preventDefault();
+            const usuarios = lerUsuarios(); const usuario = usuarios.find(u => u.id === sessionStorage.getItem('flow-usuario-atual'));
+            if (!usuario) return abrirPagina('login');
+            usuario.funcionarios.push({ id: String(Date.now()), nome: document.getElementById('empresa-funcionario-nome').value.trim(), email: document.getElementById('empresa-funcionario-email').value.trim(), cargo: document.getElementById('empresa-funcionario-cargo').value.trim() });
+            localStorage.setItem('flow-usuarios', JSON.stringify(usuarios));
+            document.getElementById('mensagem-funcionario').textContent = 'Funcionário cadastrado nesta empresa.';
+            e.target.reset(); desenharEmpresa();
+        });
+        document.getElementById('sair-empresa').addEventListener('click', () => { sessionStorage.removeItem('flow-usuario-atual'); abrirPagina('login'); });
         let statusSelecionado = 'Ativo';
         function escolherStatus(status) {
             statusSelecionado = status;
