@@ -1,35 +1,170 @@
 <?php
-$menu = [
-    ['id' => 'inicio', 'nome' => 'Início', 'icone' => '⌂'],
-    ['id' => 'consultas', 'nome' => 'Consultas', 'icone' => '☷'],
-    ['id' => 'cadastros', 'nome' => 'Cadastros', 'icone' => '♙'],
-    ['id' => 'relatorios', 'nome' => 'Relatórios', 'icone' => '▤'],
-];
+declare(strict_types=1);
+require __DIR__ . '/bootstrap.php';
+ini_set('session.use_strict_mode', '1');
+ini_set('session.use_only_cookies', '1');
+session_set_cookie_params(['httponly' => true, 'secure' => !empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off', 'samesite' => 'Lax']);
+session_start();
+header('Cache-Control: no-store');
+header('X-Content-Type-Options: nosniff');
+header('X-Frame-Options: DENY');
+header("Content-Security-Policy: default-src 'self'; style-src 'self'; img-src 'self'; form-action 'self'; frame-ancestors 'none'; base-uri 'self'");
+$_SESSION['csrf'] = $_SESSION['csrf'] ?? bin2hex(random_bytes(32));
+$rotulos = ['entrada' => 'Entrada', 'saida_intervalo' => 'Saída para intervalo', 'retorno_intervalo' => 'Retorno do intervalo', 'saida' => 'Saída'];
+$erro = '';
+$aviso = $_SESSION['aviso'] ?? '';
+unset($_SESSION['aviso']);
+$usuario = false;
+$pronto = false;
+try {
+    banco();
+    $pronto = (int) consultar("SELECT COUNT(*) FROM usuarios WHERE perfil = 'admin'")->fetchColumn() > 0;
+    if (isset($_SESSION['usuario_id'])) {
+        $usuario = consultar('SELECT * FROM usuarios WHERE id = ? AND ativo = 1', [$_SESSION['usuario_id']])->fetch();
+        if (!$usuario) unset($_SESSION['usuario_id']);
+    }
+    if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+        if (!is_string($_POST['csrf'] ?? null) || !hash_equals($_SESSION['csrf'], $_POST['csrf'])) {
+            throw new InvalidArgumentException('Sua sessão expirou. Atualize a página e tente novamente.');
+        }
+        $acao = (string) ($_POST['acao'] ?? '');
+        if ($acao === 'login') {
+            $conta = consultar('SELECT * FROM usuarios WHERE login = ?', [trim((string) ($_POST['login'] ?? ''))])->fetch();
+            $hash = $conta['senha_hash'] ?? '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2uheWG/igi';
+            $valida = password_verify((string) ($_POST['senha'] ?? ''), $hash);
+            if (!$conta || !$valida || !(int) $conta['ativo'] || (int) $conta['bloqueado_ate'] > time()) {
+                if ($conta && (int) $conta['bloqueado_ate'] <= time()) {
+                    consultar('UPDATE usuarios SET tentativas = tentativas + 1, bloqueado_ate = CASE WHEN tentativas >= 4 THEN ? ELSE 0 END WHERE id = ?', [time() + 300, $conta['id']]);
+                }
+                throw new InvalidArgumentException('Login ou senha inválidos. Após várias tentativas, aguarde 5 minutos.');
+            }
+            consultar('UPDATE usuarios SET tentativas = 0, bloqueado_ate = 0 WHERE id = ?', [$conta['id']]);
+            session_regenerate_id(true);
+            $_SESSION['usuario_id'] = (int) $conta['id'];
+            $_SESSION['csrf'] = bin2hex(random_bytes(32));
+            header('Location: index.php'); exit;
+        }
+        if (!$usuario) throw new InvalidArgumentException('Entre com seu login e senha.');
+        if ($acao === 'sair') {
+            $_SESSION = [];
+            session_regenerate_id(true);
+            $_SESSION['csrf'] = bin2hex(random_bytes(32));
+            header('Location: index.php'); exit;
+        }
+        if ($acao === 'cadastrar') {
+            if ($usuario['perfil'] !== 'admin') throw new InvalidArgumentException('Acesso permitido apenas à empresa.');
+            $dados = validarColaborador($_POST);
+            try {
+                consultar("INSERT INTO usuarios (nome, cargo, admissao, entrada, saida, login, senha_hash, perfil) VALUES (?, ?, ?, ?, ?, ?, ?, 'colaborador')", $dados);
+            } catch (PDOException $e) {
+                if ((string) $e->getCode() === '23000') throw new InvalidArgumentException('Esse login já está em uso. Escolha outro.');
+                throw $e;
+            }
+            $_SESSION['aviso'] = 'Funcionário cadastrado. Informe a ele o login e a senha definidos no cadastro.';
+            header('Location: index.php?pagina=cadastros'); exit;
+        } elseif ($acao === 'status') {
+            if ($usuario['perfil'] !== 'admin') throw new InvalidArgumentException('Acesso permitido apenas à empresa.');
+            consultar("UPDATE usuarios SET ativo = CASE ativo WHEN 1 THEN 0 ELSE 1 END WHERE id = ? AND perfil = 'colaborador'", [(int) ($_POST['id'] ?? 0)]);
+            $_SESSION['aviso'] = 'Acesso atualizado. O histórico de ponto foi preservado.';
+            header('Location: index.php?pagina=cadastros'); exit;
+        } elseif ($acao === 'ponto') {
+            $requisicao = (string) ($_POST['requisicao'] ?? '');
+            if (!preg_match('/\A[a-f0-9]{64}\z/', $requisicao)) throw new InvalidArgumentException('Atualize a página antes de registrar.');
+            registrarPonto((int) $usuario['id'], (string) ($_POST['tipo'] ?? ''), $requisicao);
+            $_SESSION['aviso'] = 'Ponto salvo no seu cadastro com o horário do servidor.';
+            header('Location: index.php'); exit;
+        } else { throw new InvalidArgumentException('Ação inválida.'); }
+    }
+} catch (InvalidArgumentException $e) { $erro = $e->getMessage(); }
+catch (Throwable $e) {
+    error_log((string) $e); http_response_code(503);
+    $erro = 'O banco de dados está indisponível. Verifique a configuração do servidor e tente novamente.';
+}
+$admin = $usuario && $usuario['perfil'] === 'admin';
+$pagina = $admin ? (string) ($_GET['pagina'] ?? 'cadastros') : 'ponto';
+if (!in_array($pagina, ['cadastros', 'consultas', 'relatorios', 'ponto'], true)) $pagina = 'cadastros';
+$funcionarios = []; $selecionado = false; $pontos = []; $total = 0;
+$numeroPagina = max(1, (int) ($_GET['p'] ?? 1));
+try {
+    if ($usuario) {
+        if ($admin) $funcionarios = consultar("SELECT id, nome, cargo, admissao, entrada, saida, login, ativo FROM usuarios WHERE perfil = 'colaborador' ORDER BY nome")->fetchAll();
+        $id = $admin ? (int) ($_GET['funcionario'] ?? 0) : (int) $usuario['id'];
+        if ($id) $selecionado = consultar("SELECT id, nome, cargo, admissao, entrada, saida, login, ativo FROM usuarios WHERE id = ? AND perfil = 'colaborador'", [$id])->fetch();
+        $condicoes = ["u.perfil = 'colaborador'"]; $filtros = [];
+        if (!$admin || $id) { $condicoes[] = 'p.usuario_id = ?'; $filtros[] = $id; }
+        foreach (['de' => '>=', 'ate' => '<='] as $campo => $operador) {
+            $valor = (string) ($_GET[$campo] ?? '');
+            if ($valor === '') continue;
+            $data = DateTimeImmutable::createFromFormat('!Y-m-d', $valor);
+            if (!$data || $data->format('Y-m-d') !== $valor) throw new InvalidArgumentException('Informe um período válido.');
+            $condicoes[] = 'substr(p.registrado_em, 1, 10) ' . $operador . ' ?'; $filtros[] = $valor;
+        }
+        if (!empty($_GET['de']) && !empty($_GET['ate']) && $_GET['de'] > $_GET['ate']) throw new InvalidArgumentException('A data inicial deve ser anterior à data final.');
+        $sqlBase = ' FROM pontos p JOIN usuarios u ON u.id = p.usuario_id WHERE ' . implode(' AND ', $condicoes);
+        $total = (int) consultar('SELECT COUNT(*)' . $sqlBase, $filtros)->fetchColumn();
+        $numeroPagina = min($numeroPagina, max(1, (int) ceil($total / 100)));
+        $sql = 'SELECT p.*, u.nome' . $sqlBase . ' ORDER BY p.id DESC';
+        if ($admin && ($_GET['exportar'] ?? '') === 'csv') {
+            header('Content-Type: text/csv; charset=UTF-8');
+            header('Content-Disposition: attachment; filename="pontos-flow.csv"');
+            $saida = fopen('php://output', 'w'); fwrite($saida, "\xEF\xBB\xBF");
+            fputcsv($saida, ['Funcionário', 'Tipo', 'Data', 'Horário (São Paulo)'], ';', '"', '');
+            $stmt = consultar($sql, $filtros);
+            while ($p = $stmt->fetch()) {
+                $nome = preg_match('/^[\s]*[=+@-]/u', $p['nome']) ? "'" . $p['nome'] : $p['nome'];
+                $data = new DateTimeImmutable($p['registrado_em']);
+                fputcsv($saida, [$nome, $rotulos[$p['tipo']], $data->format('d/m/Y'), $data->format('H:i:s')], ';', '"', '');
+            }
+            fclose($saida); exit;
+        }
+        $pontos = consultar($sql . ' LIMIT 100 OFFSET ' . (($numeroPagina - 1) * 100), $filtros)->fetchAll();
+    }
+} catch (InvalidArgumentException $e) { $erro = $e->getMessage(); }
+catch (Throwable $e) { error_log((string) $e); $erro = 'Não foi possível consultar os registros. Tente novamente.'; }
+function campoCsrf(): void { echo '<input type="hidden" name="csrf" value="' . h($_SESSION['csrf']) . '">'; }
+function dataBr($data): string { return $data ? (new DateTimeImmutable($data))->format('d/m/Y') : '—'; }
+function linkPagina(array $valores): string { return 'index.php?' . http_build_query(array_merge($_GET, $valores)); }
 ?>
-<!doctype html>
-<html lang="pt-BR">
-<head>
-<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Flow ERP</title>
-<style>
-*{box-sizing:border-box}body{margin:0;font-family:Arial,Helvetica,sans-serif;color:#183b2d}.topo{height:62px;padding:8px 24px;display:flex;align-items:center;background:#fff;border-bottom:3px solid #8fdc00}.logo{width:155px;height:45px;object-fit:contain;object-position:left center}.layout{min-height:calc(100vh - 62px);display:flex}.menu{width:220px;flex:0 0 220px;padding:18px 12px;background:#075238}.busca{width:100%;height:34px;margin-bottom:20px;padding:7px 10px;border:1px solid #cbd8ce;border-radius:3px}.menu a{display:block;padding:11px 10px;color:#e7f2e9;text-decoration:none;font-size:14px}.menu a:hover,.menu a.ativo{color:#fff;background:#087843}.icone{display:inline-block;width:25px;color:#a8e950}main{flex:1;min-width:0;background:#fff}.barra-pagina{min-height:39px;padding:9px 14px;background:#f0f0f0;border-bottom:1px solid #ddd;color:#326548;font-size:13px}.conteudo{min-height:calc(100vh - 101px);padding:32px}.inicio{display:flex;justify-content:center;align-items:center}.inicio img{display:block;width:min(570px,80%);height:auto}.painel{max-width:900px;margin:0 auto}h1{margin:0 0 22px;color:#075238;font-size:24px;font-weight:600}.formulario{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px;max-width:680px}.campo{display:flex;flex-direction:column;gap:6px}.campo.largo,.acoes{grid-column:1/-1}.campo label{font-size:14px}.campo input{height:38px;padding:8px 10px;border:1px solid #bdc9c1;border-radius:3px}.acoes{display:flex;gap:9px;margin-top:3px}button{padding:9px 16px;border:0;border-radius:3px;background:#087843;color:white;cursor:pointer}button:hover{background:#075238}.secundario{background:#68766d}.perigo{background:#a53c32}.resultado{margin-top:28px}.resultado h2{color:#075238;font-size:17px;font-weight:600}.lista{width:100%;border-collapse:collapse;font-size:14px}.lista th,.lista td{padding:10px;border-bottom:1px solid #dce4de;text-align:left}.lista th{background:#f3f6f3}.vazio{color:#68766d;font-size:14px}.status{display:inline-block;padding:3px 8px;border-radius:10px;background:#e5f3e7;color:#176533}.desligado{background:#f4e7e5;color:#963b32}.linha-acoes{display:flex;gap:5px}.linha-acoes button{padding:6px 9px;font-size:12px}.mensagem{min-height:20px;margin-top:12px;color:#176533;font-size:14px}[hidden]{display:none!important}@media(max-width:700px){.topo{height:56px;padding-left:14px}.logo{width:135px}.layout{min-height:calc(100vh - 56px);flex-direction:column}.menu{width:100%;flex-basis:auto;padding:8px;display:flex;align-items:center;gap:4px;overflow-x:auto}.busca{display:none}.menu nav{display:flex}.menu a{white-space:nowrap;padding:10px}.icone{width:19px}.conteudo{min-height:calc(100vh - 135px);padding:20px 14px}.formulario{grid-template-columns:1fr}.campo.largo,.acoes{grid-column:auto}.lista{font-size:12px}.lista th,.lista td{padding:7px 5px}}
-</style></head>
-<body>
-<header class="topo"><img class="logo" src="logo-flow-erp.png" alt="Flow ERP"></header>
-<div class="layout"><aside class="menu"><input class="busca" id="busca-menu" type="search" placeholder="Localizar item menu" aria-label="Localizar item no menu"><nav aria-label="Menu principal">
-<?php foreach ($menu as $i => $item): ?><a href="#<?= htmlspecialchars($item['id'], ENT_QUOTES, 'UTF-8') ?>" data-pagina="<?= htmlspecialchars($item['id'], ENT_QUOTES, 'UTF-8') ?>" class="<?= $i === 0 ? 'ativo' : '' ?>"><span class="icone"><?= htmlspecialchars($item['icone'], ENT_QUOTES, 'UTF-8') ?></span><?= htmlspecialchars($item['nome'], ENT_QUOTES, 'UTF-8') ?></a><?php endforeach; ?>
-</nav></aside><main><div class="barra-pagina" id="titulo-pagina">Início</div>
-<section class="conteudo inicio" id="pagina-inicio"><img src="logo-flow-erp.png" alt="Flow ERP"></section>
-<section class="conteudo" id="pagina-consultas" hidden><div class="painel"><h1>Consulta</h1><form class="formulario" id="form-consulta"><div class="campo largo"><label for="consulta-nome">Nome</label><input id="consulta-nome" type="text" placeholder="Nome para filtrar"></div><div class="campo"><label for="consulta-inicio">Data de início</label><input id="consulta-inicio" type="date"></div><div class="campo"><label for="consulta-fim">Data de término</label><input id="consulta-fim" type="date"></div><div class="acoes"><button type="submit">Consultar</button><button type="reset" class="secundario">Limpar</button></div></form><div class="resultado" id="resultado-consulta"></div></div></section>
-<section class="conteudo" id="pagina-cadastros" hidden><div class="painel"><h1>Cadastro de colaborador</h1><form class="formulario" id="form-cadastro"><div class="campo largo"><label for="cadastro-nome">Nome</label><input id="cadastro-nome" type="text" required></div><div class="campo"><label for="cadastro-contratacao">Data de contratação</label><input id="cadastro-contratacao" type="date" required></div><div class="campo"><label for="cadastro-saida">Data de saída</label><input id="cadastro-saida" type="date"></div><div class="campo largo"><label>Status</label><div class="acoes"><button type="button" id="status-ativo" aria-pressed="true">Ativo</button><button type="button" class="secundario" id="status-desligado" aria-pressed="false">Desligado</button></div></div><div class="acoes"><button type="submit">Salvar cadastro</button><button type="reset" class="secundario">Limpar</button></div></form><div class="mensagem" id="mensagem-cadastro"></div><div class="resultado" id="lista-cadastros"></div></div></section>
-<section class="conteudo" id="pagina-relatorios" hidden><div class="painel"><h1>Relatórios</h1><p class="vazio">Baixe a lista de colaboradores cadastrados.</p><button type="button" id="relatorio-csv">Baixar relatório CSV</button><div class="mensagem" id="mensagem-relatorio"></div></div></section>
-</main></div>
-<script>
-const paginas=<?= json_encode(array_column($menu,'id'), JSON_UNESCAPED_UNICODE) ?>;
-function abrirPagina(nome){if(!paginas.includes(nome))nome='inicio';paginas.forEach(p=>document.getElementById('pagina-'+p).hidden=p!==nome);document.querySelectorAll('.menu nav a').forEach(a=>a.classList.toggle('ativo',a.dataset.pagina===nome));document.getElementById('titulo-pagina').textContent=nome==='cadastros'?'Cadastros':nome[0].toUpperCase()+nome.slice(1);history.replaceState(null,'','#'+nome);if(nome==='cadastros')desenharCadastros()}
-document.querySelectorAll('.menu nav a').forEach(a=>a.addEventListener('click',e=>{e.preventDefault();abrirPagina(a.dataset.pagina)}));document.getElementById('busca-menu').addEventListener('input',e=>{const q=e.target.value.trim().toLocaleLowerCase('pt-BR');document.querySelectorAll('.menu nav a').forEach(a=>a.hidden=!a.textContent.toLocaleLowerCase('pt-BR').includes(q))});
-function ler(){try{return JSON.parse(localStorage.getItem('flow-colaboradores')||'[]')}catch(e){return[]}}function gravar(r){localStorage.setItem('flow-colaboradores',JSON.stringify(r))}let status='Ativo';function escolher(s){status=s;document.getElementById('status-ativo').className=s==='Ativo'?'':'secundario';document.getElementById('status-desligado').className=s==='Desligado'?'perigo':'secundario';document.getElementById('status-ativo').setAttribute('aria-pressed',s==='Ativo');document.getElementById('status-desligado').setAttribute('aria-pressed',s==='Desligado')}document.getElementById('status-ativo').addEventListener('click',()=>escolher('Ativo'));document.getElementById('status-desligado').addEventListener('click',()=>escolher('Desligado'));document.getElementById('form-cadastro').addEventListener('reset',()=>setTimeout(()=>escolher('Ativo')));
-document.getElementById('form-cadastro').addEventListener('submit',e=>{e.preventDefault();const r=ler();r.push({id:Date.now(),nome:document.getElementById('cadastro-nome').value.trim(),contratacao:document.getElementById('cadastro-contratacao').value,saida:document.getElementById('cadastro-saida').value,status});gravar(r);document.getElementById('mensagem-cadastro').textContent='Cadastro salvo neste navegador.';e.target.reset();desenharCadastros()});function dataPt(d){return d?d.split('-').reverse().join('/'):'—'}function esc(s){return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
-function desenharCadastros(){const rs=ler(),el=document.getElementById('lista-cadastros');if(!rs.length){el.innerHTML='<h2>Cadastros</h2><p class="vazio">Nenhum colaborador cadastrado.</p>';return}el.innerHTML='<h2>Cadastros</h2><table class="lista"><thead><tr><th>Nome</th><th>Contratação</th><th>Saída</th><th>Status</th><th>Ação</th></tr></thead><tbody>'+rs.map(r=>`<tr><td>${esc(r.nome)}</td><td>${dataPt(r.contratacao)}</td><td>${dataPt(r.saida)}</td><td><span class="status ${r.status==='Desligado'?'desligado':''}">${r.status}</span></td><td><div class="linha-acoes"><button type="button" data-toggle="${r.id}">${r.status==='Ativo'?'Desligar':'Ativar'}</button><button type="button" class="perigo" data-excluir="${r.id}">Excluir</button></div></td></tr>`).join('')+'</tbody></table>';el.querySelectorAll('[data-toggle]').forEach(b=>b.onclick=()=>{const a=ler(),r=a.find(x=>x.id==b.dataset.toggle);if(r)r.status=r.status==='Ativo'?'Desligado':'Ativo';gravar(a);desenharCadastros()});el.querySelectorAll('[data-excluir]').forEach(b=>b.onclick=()=>{gravar(ler().filter(x=>x.id!=b.dataset.excluir));desenharCadastros()})}
-document.getElementById('form-consulta').addEventListener('reset',()=>document.getElementById('resultado-consulta').innerHTML='');document.getElementById('form-consulta').addEventListener('submit',e=>{e.preventDefault();const n=document.getElementById('consulta-nome').value.trim().toLocaleLowerCase('pt-BR'),i=document.getElementById('consulta-inicio').value,f=document.getElementById('consulta-fim').value;const rs=ler().filter(r=>(!n||r.nome.toLocaleLowerCase('pt-BR').includes(n))&&(!i||r.contratacao>=i)&&(!f||r.contratacao<=f)),el=document.getElementById('resultado-consulta');if(!rs.length){el.innerHTML='<p class="vazio">Nenhum registro encontrado.</p>';return}el.innerHTML='<table class="lista"><thead><tr><th>Nome</th><th>Contratação</th><th>Saída</th><th>Status</th></tr></thead><tbody>'+rs.map(r=>`<tr><td>${esc(r.nome)}</td><td>${dataPt(r.contratacao)}</td><td>${dataPt(r.saida)}</td><td>${esc(r.status)}</td></tr>`).join('')+'</tbody></table>'});
-document.getElementById('relatorio-csv').addEventListener('click',()=>{const linhas=[['Nome','Data de contratação','Data de saída','Status'],...ler().map(r=>[r.nome,r.contratacao,r.saida,r.status])],csv='\ufeff'+linhas.map(l=>l.map(v=>'"'+String(v||'').replace(/"/g,'""')+'"').join(';')).join('\r\n'),a=document.createElement('a');a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv;charset=utf-8'}));a.download='relatorio-flow.csv';a.click();URL.revokeObjectURL(a.href);document.getElementById('mensagem-relatorio').textContent='Relatório baixado.'});abrirPagina(location.hash.slice(1)||'inicio');
-</script></body></html>
+<!doctype html><html lang="pt-BR"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Flow ERP — Funcionários e ponto</title><link rel="stylesheet" href="style.css">
+</head><body>
+<header class="topo"><img class="logo" src="logo-flow-erp.png" alt="Flow ERP"><?php if ($usuario): ?><span class="identidade"><?= h($usuario['nome']) ?></span><form method="post"><?php campoCsrf(); ?><button name="acao" value="sair" class="secundario">Sair</button></form><?php endif; ?></header>
+<div class="layout"><aside class="menu"><nav aria-label="Menu principal">
+<?php if ($admin): ?>
+<a href="index.php?pagina=cadastros" class="<?= $pagina === 'cadastros' ? 'ativo' : '' ?>">Funcionários</a>
+<a href="index.php?pagina=consultas" class="<?= $pagina === 'consultas' ? 'ativo' : '' ?>">Consultar pontos</a>
+<a href="index.php?pagina=relatorios" class="<?= $pagina === 'relatorios' ? 'ativo' : '' ?>">Relatórios</a>
+<?php elseif ($usuario): ?><a href="index.php" class="ativo">Meu ponto</a>
+<?php else: ?><a href="index.php" class="ativo">Entrar</a><?php endif; ?>
+</nav></aside><main><div class="barra-pagina"><?= !$usuario ? 'Acesso ao Flow ERP' : ($admin ? 'Área da empresa' : 'Área do colaborador') ?></div><section class="conteudo"><div class="painel">
+<?php if ($erro): ?><p class="alerta erro" role="alert"><?= h($erro) ?></p><?php endif; ?>
+<?php if ($aviso): ?><p class="alerta sucesso" role="status"><?= h($aviso) ?></p><?php endif; ?>
+<?php if (!$usuario): ?>
+<h1>Entrar</h1><p>Use o acesso da empresa ou seu login de colaborador.</p>
+<?php if (!$pronto): ?><p class="alerta">O administrador precisa concluir a configuração inicial no servidor antes do primeiro acesso. Consulte o README do projeto.</p><?php else: ?>
+<form method="post" class="formulario usuario"><?php campoCsrf(); ?><input type="hidden" name="acao" value="login">
+<div class="campo largo"><label for="login">Login</label><input id="login" name="login" required maxlength="80" autocomplete="username"></div>
+<div class="campo largo"><label for="senha">Senha</label><input id="senha" name="senha" type="password" required maxlength="72" autocomplete="current-password"></div>
+<div class="acoes"><button>Entrar</button></div></form><?php endif; ?>
+<?php elseif ($admin && $pagina === 'cadastros' && !$selecionado): ?>
+<h1>Cadastro de funcionário</h1><form method="post" class="formulario"><?php campoCsrf(); ?><input type="hidden" name="acao" value="cadastrar">
+<?php foreach (['nome' => ['Nome completo', 'text', 200], 'cargo' => ['Cargo', 'text', 120], 'admissao' => ['Data de admissão', 'date', null], 'entrada' => ['Horário de entrada', 'time', null], 'saida' => ['Horário de saída', 'time', null], 'login' => ['Login do colaborador', 'text', 80], 'senha' => ['Senha do colaborador (mínimo 8 caracteres)', 'password', 72]] as $nome => $campo): ?>
+<div class="campo <?= $nome === 'nome' ? 'largo' : '' ?>"><label for="<?= h($nome) ?>"><?= h($campo[0]) ?></label><input id="<?= h($nome) ?>" name="<?= h($nome) ?>" type="<?= h($campo[1]) ?>" required <?= $campo[2] ? 'maxlength="' . $campo[2] . '"' : '' ?> <?= $nome === 'senha' ? 'minlength="8" autocomplete="new-password"' : '' ?> value="<?= $nome !== 'senha' && ($_POST['acao'] ?? '') === 'cadastrar' ? h($_POST[$nome] ?? '') : '' ?>"></div>
+<?php endforeach; ?><div class="acoes"><button>Salvar funcionário</button><button type="reset" class="secundario">Limpar</button></div></form>
+<div class="resultado"><h2>Funcionários cadastrados</h2><?php if (!$funcionarios): ?><p class="vazio">Nenhum funcionário cadastrado.</p><?php else: ?>
+<div class="tabela"><table class="lista"><thead><tr><th>Nome / cargo</th><th>Admissão</th><th>Horário</th><th>Login</th><th>Status</th><th>Ações</th></tr></thead><tbody>
+<?php foreach ($funcionarios as $f): ?><tr><td><?= h($f['nome']) ?><small><?= h($f['cargo']) ?></small></td><td><?= h(dataBr($f['admissao'])) ?></td><td><?= h($f['entrada']) ?> às <?= h($f['saida']) ?></td><td><?= h($f['login']) ?></td><td><?= $f['ativo'] ? 'Ativo' : 'Inativo' ?></td><td><div class="linha-acoes"><a class="botao" href="index.php?pagina=consultas&amp;funcionario=<?= (int) $f['id'] ?>">Cadastro e pontos</a><form method="post"><?php campoCsrf(); ?><input type="hidden" name="id" value="<?= (int) $f['id'] ?>"><button name="acao" value="status" class="secundario"><?= $f['ativo'] ? 'Desativar acesso' : 'Ativar acesso' ?></button></form></div></td></tr><?php endforeach; ?>
+</tbody></table></div><?php endif; ?></div>
+<?php else: ?><h1><?= $admin ? 'Histórico de pontos' : 'Meu ponto' ?></h1>
+<?php if ($selecionado): ?><div class="cadastro"><h2><?= h($selecionado['nome']) ?></h2><p><?= h($selecionado['cargo']) ?> · Admissão: <?= h(dataBr($selecionado['admissao'])) ?></p><p>Horário de trabalho: <?= h($selecionado['entrada']) ?> às <?= h($selecionado['saida']) ?></p><p>Login: <?= h($selecionado['login']) ?> · <?= $selecionado['ativo'] ? 'Ativo' : 'Inativo' ?></p></div><?php endif; ?>
+<?php if (!$admin): ?><p>Horário atual do servidor: <strong><?= h(date('d/m/Y H:i:s')) ?></strong> (São Paulo). Cada batida será salva no seu cadastro.</p>
+<div class="botoes-ponto"><?php foreach (proximosPontos(ultimoPonto((int) $usuario['id'])) as $tipo): ?><form method="post"><?php campoCsrf(); ?><input type="hidden" name="acao" value="ponto"><input type="hidden" name="tipo" value="<?= h($tipo) ?>"><input type="hidden" name="requisicao" value="<?= h(bin2hex(random_bytes(32))) ?>"><button>Registrar: <?= h($rotulos[$tipo]) ?></button></form><?php endforeach; ?></div><?php endif; ?>
+<form method="get" class="formulario filtro"><input type="hidden" name="pagina" value="<?= h($pagina) ?>">
+<?php if ($admin): ?><div class="campo largo"><label for="funcionario">Funcionário</label><select id="funcionario" name="funcionario"><option value="">Todos os funcionários</option><?php foreach ($funcionarios as $f): ?><option value="<?= (int) $f['id'] ?>" <?= (int) $f['id'] === $id ? 'selected' : '' ?>><?= h($f['nome']) ?></option><?php endforeach; ?></select></div><?php endif; ?>
+<div class="campo"><label for="de">De</label><input id="de" name="de" type="date" value="<?= h($_GET['de'] ?? '') ?>"></div><div class="campo"><label for="ate">Até</label><input id="ate" name="ate" type="date" value="<?= h($_GET['ate'] ?? '') ?>"></div>
+<div class="acoes"><button>Consultar</button><a class="botao secundario" href="index.php?pagina=<?= h($pagina) ?>">Limpar</a><?php if ($admin): ?><button name="exportar" value="csv">Baixar CSV</button><?php endif; ?></div></form>
+<div class="resultado"><h2>Batidas registradas</h2><p class="vazio"><?= $total ?> registro(s). Horários de São Paulo.</p>
+<?php if (!$pontos): ?><p>Nenhum ponto encontrado neste período.</p><?php else: ?><div class="tabela"><table class="lista"><thead><tr><?php if ($admin): ?><th>Funcionário</th><?php endif; ?><th>Data</th><th>Horário</th><th>Batida</th></tr></thead><tbody>
+<?php foreach ($pontos as $p): $data = new DateTimeImmutable($p['registrado_em']); ?><tr><?php if ($admin): ?><td><?= h($p['nome']) ?></td><?php endif; ?><td><?= h($data->format('d/m/Y')) ?></td><td><?= h($data->format('H:i:s')) ?></td><td><?= h($rotulos[$p['tipo']]) ?></td></tr><?php endforeach; ?>
+</tbody></table></div><div class="paginacao"><?php if ($numeroPagina > 1): ?><a href="<?= h(linkPagina(['p' => $numeroPagina - 1])) ?>">Anterior</a><?php endif; ?><span>Página <?= $numeroPagina ?> de <?= max(1, (int) ceil($total / 100)) ?></span><?php if ($numeroPagina * 100 < $total): ?><a href="<?= h(linkPagina(['p' => $numeroPagina + 1])) ?>">Próxima</a><?php endif; ?></div><?php endif; ?></div>
+<?php endif; ?></div></section></main></div></body></html>

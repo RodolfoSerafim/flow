@@ -1,0 +1,4 @@
+DirectoryIndex index.php index.html
+<FilesMatch "^(bootstrap\.php|console\.php|smoke\.php|schema\.sql|.*\.sqlite.*)$">
+    Require all denied
+</FilesMatch>
