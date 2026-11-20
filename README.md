@@ -46,6 +46,19 @@ Os cadastros antigos guardados no `localStorage` não são importados automatica
 
 GitHub Pages não executa PHP nem mantém esse banco. `index.html` mostra as orientações de hospedagem; o sistema funciona por `index.php`.
 
+## Hospedagem gratuita na InfinityFree
+
+Essa hospedagem oferece PHP e suporte a SQLite, mas não disponibiliza terminal SSH. A preparação abaixo permite criar o administrador pelo navegador.
+
+1. Crie uma conta gratuita na InfinityFree e escolha um subdomínio para o projeto. Ative o certificado SSL gratuito antes de configurar o acesso ao sistema.
+2. No seu computador, dentro do projeto, execute `php preparar-hospedagem.php`. Ele prepara a pasta protegida `data` e cria `config.local.php` com o caminho do banco e o hash de uma chave aleatória, mostrando a chave no terminal. A pasta de dados e a configuração privada estão excluídas do Git. O comando não sobrescreve uma configuração existente.
+3. Envie para `htdocs` apenas `.htaccess`, `bootstrap.php`, `config.local.php`, `index.php`, `instalar.php`, `schema.sql`, `style.css`, `logo-flow-erp.png` e a pasta `data` com seu `.htaccess` e `index.php`. Não envie `.git`, bancos locais, arquivos de teste ou o ZIP antigo.
+4. O banco desta instalação será criado em `data/flow.sqlite`. O `.htaccess` da pasta bloqueia todo acesso HTTP e a regra da raiz também bloqueia arquivos SQLite. Antes de cadastrar dados reais, confirme que o acesso direto a `/data/`, `/data/flow.sqlite` e `/config.local.php` retorna 403 ou 404, sem conteúdo do arquivo.
+5. Acesse `https://seu-subdominio/instalar.php`, informe a chave e defina o login e a senha do administrador. O instalador se bloqueia assim que existe um administrador, inclusive para quem ainda possui a chave. Depois da conclusão, remova `instalar.php` do servidor.
+6. Acesse `index.php` e teste cadastro, acesso do colaborador e gravação de ponto. Mantenha cópias privadas do banco; os arquivos de dados não devem ser substituídos ao atualizar o código.
+
+O bloqueio da pasta `data` depende do Apache e de `.htaccess`. Em servidores sem esse recurso, mantenha o banco fora da raiz pública, usando a configuração padrão ou `FLOW_DB_PATH`.
+
 Esta implementação atende ao controle básico solicitado. Não inclui escalas, cálculo de horas extras, geolocalização, edição de ponto ou recuperação de senha. Não foi homologada como registrador oficial de ponto.
 
 ## Verificação

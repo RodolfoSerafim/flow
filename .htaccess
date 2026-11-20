@@ -1,4 +1,5 @@
 DirectoryIndex index.php index.html
-<FilesMatch "^(bootstrap\.php|console\.php|smoke\.php|schema\.sql|.*\.sqlite.*)$">
+Options -Indexes
+<FilesMatch "^(bootstrap\.php|console\.php|preparar-hospedagem\.php|config\.local\.php|smoke\.php|schema\.sql|.*\.sqlite.*)$">
     Require all denied
 </FilesMatch>

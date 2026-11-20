@@ -3,12 +3,24 @@ declare(strict_types=1);
 
 date_default_timezone_set('America/Sao_Paulo');
 
+function configuracao(): array
+{
+    static $config;
+    if ($config === null) {
+        $arquivo = __DIR__ . '/config.local.php';
+        $config = is_file($arquivo) ? require $arquivo : [];
+        if (!is_array($config)) throw new RuntimeException('Configuração inválida.');
+    }
+    return $config;
+}
+
 function banco(): PDO
 {
     static $pdo;
     if ($pdo instanceof PDO) return $pdo;
-    // Fora da pasta publicada: o arquivo de dados nunca deve ser servido por HTTP.
-    $arquivo = getenv('FLOW_DB_PATH') ?: dirname(__DIR__) . '/flow-dados/flow.sqlite';
+    // Por padrão fica fora da pasta publicada. Hospedagem compartilhada pode
+    // usar a pasta data, bloqueada pelo Apache, através de config.local.php.
+    $arquivo = getenv('FLOW_DB_PATH') ?: (configuracao()['database_path'] ?? dirname(__DIR__) . '/flow-dados/flow.sqlite');
     $pasta = dirname($arquivo);
     if (!is_dir($pasta) && !mkdir($pasta, 0700, true) && !is_dir($pasta)) {
         throw new RuntimeException('Não foi possível criar a pasta de dados.');
