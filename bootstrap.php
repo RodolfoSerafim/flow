@@ -92,6 +92,50 @@ function ultimoPonto(int $usuarioId)
     return consultar('SELECT * FROM pontos WHERE usuario_id = ? ORDER BY id DESC LIMIT 1', [$usuarioId])->fetch();
 }
 
+function gerarSenhaColaborador(): string
+{
+    return rtrim(strtr(base64_encode(random_bytes(12)), '+/', '-_'), '=');
+}
+
+function cadastrarColaborador(array $cadastro): array
+{
+    $senha = gerarSenhaColaborador();
+    for ($tentativa = 0; $tentativa < 5; $tentativa++) {
+        $cadastro['login'] = 'colab.' . bin2hex(random_bytes(4));
+        $cadastro['senha'] = $senha;
+        $dados = validarColaborador($cadastro);
+        try {
+            consultar("INSERT INTO usuarios (nome, cargo, admissao, entrada, saida, login, senha_hash, perfil) VALUES (?, ?, ?, ?, ?, ?, ?, 'colaborador')", $dados);
+            return ['id' => (int) banco()->lastInsertId(), 'nome' => $dados[0], 'login' => $dados[5], 'senha' => $senha];
+        } catch (PDOException $e) {
+            if ((string) $e->getCode() !== '23000') throw $e;
+        }
+    }
+    throw new RuntimeException('Não foi possível gerar um login exclusivo. Tente novamente.');
+}
+
+function renovarSenhaColaborador(int $id): array
+{
+    $colaborador = consultar("SELECT id, nome, login FROM usuarios WHERE id = ? AND perfil = 'colaborador' AND ativo = 1", [$id])->fetch();
+    if (!$colaborador) throw new InvalidArgumentException('Selecione um funcionário ativo para gerar uma nova senha.');
+    $senha = gerarSenhaColaborador();
+    consultar('UPDATE usuarios SET senha_hash = ?, tentativas = 0, bloqueado_ate = 0 WHERE id = ?', [password_hash($senha, PASSWORD_DEFAULT), $id]);
+    return ['id' => (int) $colaborador['id'], 'nome' => $colaborador['nome'], 'login' => $colaborador['login'], 'senha' => $senha];
+}
+
+function urlAcessoColaborador(): string
+{
+    $base = (string) (configuracao()['public_url'] ?? '');
+    if ($base === '') {
+        $host = (string) ($_SERVER['HTTP_HOST'] ?? '');
+        if (!preg_match('/\A[a-zA-Z0-9.-]+(?::[0-9]{1,5})?\z/', $host)) return 'index.php?acesso=colaborador';
+        $protocolo = !empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off' ? 'https' : 'http';
+        $pasta = rtrim(str_replace('\\', '/', dirname($_SERVER['SCRIPT_NAME'] ?? '/index.php')), '/.');
+        $base = $protocolo . '://' . $host . $pasta;
+    }
+    return rtrim($base, '/') . '/index.php?acesso=colaborador';
+}
+
 function proximosPontos($ultimo): array
 {
     if (!$ultimo || $ultimo['tipo'] === 'saida') return ['entrada'];

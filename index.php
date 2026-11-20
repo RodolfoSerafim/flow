@@ -16,12 +16,14 @@ $aviso = $_SESSION['aviso'] ?? '';
 unset($_SESSION['aviso']);
 $usuario = false;
 $pronto = false;
+$novoAcesso = false;
 try {
     banco();
     $pronto = (int) consultar("SELECT COUNT(*) FROM usuarios WHERE perfil = 'admin'")->fetchColumn() > 0;
     if (isset($_SESSION['usuario_id'])) {
         $usuario = consultar('SELECT * FROM usuarios WHERE id = ? AND ativo = 1', [$_SESSION['usuario_id']])->fetch();
-        if (!$usuario) unset($_SESSION['usuario_id']);
+        if ($usuario && !hash_equals(hash('sha256', $usuario['senha_hash']), (string) ($_SESSION['assinatura_senha'] ?? ''))) $usuario = false;
+        if (!$usuario) unset($_SESSION['usuario_id'], $_SESSION['assinatura_senha'], $_SESSION['acesso_criado']);
     }
     if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if (!is_string($_POST['csrf'] ?? null) || !hash_equals($_SESSION['csrf'], $_POST['csrf'])) {
@@ -41,6 +43,7 @@ try {
             consultar('UPDATE usuarios SET tentativas = 0, bloqueado_ate = 0 WHERE id = ?', [$conta['id']]);
             session_regenerate_id(true);
             $_SESSION['usuario_id'] = (int) $conta['id'];
+            $_SESSION['assinatura_senha'] = hash('sha256', $conta['senha_hash']);
             $_SESSION['csrf'] = bin2hex(random_bytes(32));
             header('Location: index.php'); exit;
         }
@@ -53,14 +56,13 @@ try {
         }
         if ($acao === 'cadastrar') {
             if ($usuario['perfil'] !== 'admin') throw new InvalidArgumentException('Acesso permitido apenas à empresa.');
-            $dados = validarColaborador($_POST);
-            try {
-                consultar("INSERT INTO usuarios (nome, cargo, admissao, entrada, saida, login, senha_hash, perfil) VALUES (?, ?, ?, ?, ?, ?, ?, 'colaborador')", $dados);
-            } catch (PDOException $e) {
-                if ((string) $e->getCode() === '23000') throw new InvalidArgumentException('Esse login já está em uso. Escolha outro.');
-                throw $e;
-            }
-            $_SESSION['aviso'] = 'Funcionário cadastrado. Informe a ele o login e a senha definidos no cadastro.';
+            $_SESSION['acesso_criado'] = cadastrarColaborador($_POST) + ['expira_em' => time() + 600];
+            $_SESSION['aviso'] = 'Funcionário cadastrado. O login e a senha foram gerados automaticamente.';
+            header('Location: index.php?pagina=cadastros'); exit;
+        } elseif ($acao === 'renovar-senha') {
+            if ($usuario['perfil'] !== 'admin') throw new InvalidArgumentException('Acesso permitido apenas à empresa.');
+            $_SESSION['acesso_criado'] = renovarSenhaColaborador((int) ($_POST['id'] ?? 0)) + ['expira_em' => time() + 600];
+            $_SESSION['aviso'] = 'Nova senha gerada. A senha anterior e as sessões antigas deixaram de funcionar; o histórico foi preservado.';
             header('Location: index.php?pagina=cadastros'); exit;
         } elseif ($acao === 'status') {
             if ($usuario['perfil'] !== 'admin') throw new InvalidArgumentException('Acesso permitido apenas à empresa.');
@@ -81,6 +83,9 @@ catch (Throwable $e) {
     $erro = 'O banco de dados está indisponível. Verifique a configuração do servidor e tente novamente.';
 }
 $admin = $usuario && $usuario['perfil'] === 'admin';
+if ($admin && (int) ($_SESSION['acesso_criado']['expira_em'] ?? 0) >= time()) $novoAcesso = $_SESSION['acesso_criado'];
+unset($_SESSION['acesso_criado']);
+$acessoColaborador = ($_GET['acesso'] ?? '') === 'colaborador';
 $pagina = $admin ? (string) ($_GET['pagina'] ?? 'cadastros') : 'ponto';
 if (!in_array($pagina, ['cadastros', 'consultas', 'relatorios', 'ponto'], true)) $pagina = 'cadastros';
 $funcionarios = []; $selecionado = false; $pontos = []; $total = 0;
@@ -135,30 +140,40 @@ function linkPagina(array $valores): string { return 'index.php?' . http_build_q
 <a href="index.php?pagina=consultas" class="<?= $pagina === 'consultas' ? 'ativo' : '' ?>">Consultar pontos</a>
 <a href="index.php?pagina=relatorios" class="<?= $pagina === 'relatorios' ? 'ativo' : '' ?>">Relatórios</a>
 <?php elseif ($usuario): ?><a href="index.php" class="ativo">Meu ponto</a>
-<?php else: ?><a href="index.php" class="ativo">Entrar</a><?php endif; ?>
+<?php else: ?><a href="index.php" class="<?= !$acessoColaborador ? 'ativo' : '' ?>">Entrar como empresa</a><a href="index.php?acesso=colaborador" class="<?= $acessoColaborador ? 'ativo' : '' ?>">Bater ponto (colaborador)</a><?php endif; ?>
 </nav></aside><main><div class="barra-pagina"><?= !$usuario ? 'Acesso ao Flow ERP' : ($admin ? 'Área da empresa' : 'Área do colaborador') ?></div><section class="conteudo"><div class="painel">
 <?php if ($erro): ?><p class="alerta erro" role="alert"><?= h($erro) ?></p><?php endif; ?>
 <?php if ($aviso): ?><p class="alerta sucesso" role="status"><?= h($aviso) ?></p><?php endif; ?>
+<?php if ($novoAcesso): $mensagemAcesso = 'Olá, ' . $novoAcesso['nome'] . "!\nSeu acesso ao Flow ERP para bater o ponto:\n\nLink: " . urlAcessoColaborador() . "\nLogin: " . $novoAcesso['login'] . "\nSenha: " . $novoAcesso['senha'] . "\n\nEntre com esses dados e clique em Bater ponto para registrar sua entrada, intervalo ou saída."; ?>
+<section class="acesso-gerado" aria-labelledby="titulo-acesso"><h2 id="titulo-acesso">Acesso do funcionário gerado</h2><p>Copie a mensagem abaixo e envie para <strong><?= h($novoAcesso['nome']) ?></strong>.</p><label for="mensagem-acesso">Mensagem para enviar ao funcionário</label><textarea id="mensagem-acesso" readonly rows="10" spellcheck="false"><?= h($mensagemAcesso) ?></textarea><button type="button" id="copiar-acesso">Copiar acesso do funcionário</button><p id="status-copia" role="status" aria-live="polite"></p><p class="vazio">A senha aparece somente agora. Se precisar enviá-la novamente depois, use “Gerar nova senha” no cadastro.</p><p><a class="botao" href="index.php?pagina=consultas&amp;funcionario=<?= (int) $novoAcesso['id'] ?>">Abrir cadastro e pontos</a></p></section><script src="acesso.js" defer></script>
+<?php endif; ?>
 <?php if (!$usuario): ?>
-<h1>Entrar</h1><p>Use o acesso da empresa ou seu login de colaborador.</p>
+<h1><?= $acessoColaborador ? 'Entrar para bater ponto' : 'Entrar como empresa' ?></h1><p><?= $acessoColaborador ? 'Use o login e a senha que a empresa enviou. Depois de entrar, clique em Bater ponto.' : 'Entre para cadastrar funcionários e acompanhar os pontos. O funcionário deve usar o acesso de colaborador.' ?></p>
+<div class="escolha-acesso"><a class="botao <?= !$acessoColaborador ? '' : 'secundario' ?>" href="index.php">Sou empresa</a><a class="botao <?= $acessoColaborador ? '' : 'secundario' ?>" href="index.php?acesso=colaborador">Sou funcionário — bater ponto</a></div>
 <?php if (!$pronto): ?><p class="alerta">O administrador precisa concluir a configuração inicial no servidor antes do primeiro acesso. Consulte o README do projeto.</p><?php else: ?>
 <form method="post" class="formulario usuario"><?php campoCsrf(); ?><input type="hidden" name="acao" value="login">
 <div class="campo largo"><label for="login">Login</label><input id="login" name="login" required maxlength="80" autocomplete="username"></div>
 <div class="campo largo"><label for="senha">Senha</label><input id="senha" name="senha" type="password" required maxlength="72" autocomplete="current-password"></div>
 <div class="acoes"><button>Entrar</button></div></form><?php endif; ?>
 <?php elseif ($admin && $pagina === 'cadastros' && !$selecionado): ?>
-<h1>Cadastro de funcionário</h1><form method="post" class="formulario"><?php campoCsrf(); ?><input type="hidden" name="acao" value="cadastrar">
-<?php foreach (['nome' => ['Nome completo', 'text', 200], 'cargo' => ['Cargo', 'text', 120], 'admissao' => ['Data de admissão', 'date', null], 'entrada' => ['Horário de entrada', 'time', null], 'saida' => ['Horário de saída', 'time', null], 'login' => ['Login do colaborador', 'text', 80], 'senha' => ['Senha do colaborador (mínimo 8 caracteres)', 'password', 72]] as $nome => $campo): ?>
-<div class="campo <?= $nome === 'nome' ? 'largo' : '' ?>"><label for="<?= h($nome) ?>"><?= h($campo[0]) ?></label><input id="<?= h($nome) ?>" name="<?= h($nome) ?>" type="<?= h($campo[1]) ?>" required <?= $campo[2] ? 'maxlength="' . $campo[2] . '"' : '' ?> <?= $nome === 'senha' ? 'minlength="8" autocomplete="new-password"' : '' ?> value="<?= $nome !== 'senha' && ($_POST['acao'] ?? '') === 'cadastrar' ? h($_POST[$nome] ?? '') : '' ?>"></div>
+<h1>Cadastro de funcionário</h1><p>Preencha os dados abaixo. Ao salvar, o sistema gera o login e a senha para você enviar ao funcionário.</p><form method="post" class="formulario"><?php campoCsrf(); ?><input type="hidden" name="acao" value="cadastrar">
+<?php foreach (['nome' => ['Nome completo', 'text', 200], 'cargo' => ['Cargo', 'text', 120], 'admissao' => ['Data de admissão', 'date', null], 'entrada' => ['Horário de entrada', 'time', null], 'saida' => ['Horário de saída', 'time', null]] as $nome => $campo): ?>
+<div class="campo <?= $nome === 'nome' ? 'largo' : '' ?>"><label for="<?= h($nome) ?>"><?= h($campo[0]) ?></label><input id="<?= h($nome) ?>" name="<?= h($nome) ?>" type="<?= h($campo[1]) ?>" required <?= $campo[2] ? 'maxlength="' . $campo[2] . '"' : '' ?> value="<?= ($_POST['acao'] ?? '') === 'cadastrar' ? h($_POST[$nome] ?? '') : '' ?>"></div>
 <?php endforeach; ?><div class="acoes"><button>Salvar funcionário</button><button type="reset" class="secundario">Limpar</button></div></form>
-<div class="resultado"><h2>Funcionários cadastrados</h2><?php if (!$funcionarios): ?><p class="vazio">Nenhum funcionário cadastrado.</p><?php else: ?>
+<section class="orientacao-ponto"><h2>Onde o funcionário bate o ponto?</h2><p>Envie a ele o acesso gerado no cadastro e este link. Depois de entrar, ele verá os botões de <strong>Bater ponto</strong>.</p><label for="link-colaborador">Link para o funcionário</label><input id="link-colaborador" readonly value="<?= h(urlAcessoColaborador()) ?>"><p class="vazio">Para testar no mesmo navegador, saia da conta da empresa ou abra uma janela anônima.</p></section>
+<div class="resultado"><h2>Funcionários cadastrados</h2><p>Clique em <strong>Cadastro e pontos</strong> ao lado do funcionário para ver todas as batidas dele.</p><?php if (!$funcionarios): ?><p class="vazio">Nenhum funcionário cadastrado.</p><?php else: ?>
 <div class="tabela"><table class="lista"><thead><tr><th>Nome / cargo</th><th>Admissão</th><th>Horário</th><th>Login</th><th>Status</th><th>Ações</th></tr></thead><tbody>
-<?php foreach ($funcionarios as $f): ?><tr><td><?= h($f['nome']) ?><small><?= h($f['cargo']) ?></small></td><td><?= h(dataBr($f['admissao'])) ?></td><td><?= h($f['entrada']) ?> às <?= h($f['saida']) ?></td><td><?= h($f['login']) ?></td><td><?= $f['ativo'] ? 'Ativo' : 'Inativo' ?></td><td><div class="linha-acoes"><a class="botao" href="index.php?pagina=consultas&amp;funcionario=<?= (int) $f['id'] ?>">Cadastro e pontos</a><form method="post"><?php campoCsrf(); ?><input type="hidden" name="id" value="<?= (int) $f['id'] ?>"><button name="acao" value="status" class="secundario"><?= $f['ativo'] ? 'Desativar acesso' : 'Ativar acesso' ?></button></form></div></td></tr><?php endforeach; ?>
+<?php foreach ($funcionarios as $f): ?>
+<tr><td><?= h($f['nome']) ?><small><?= h($f['cargo']) ?></small></td><td><?= h(dataBr($f['admissao'])) ?></td><td><?= h($f['entrada']) ?> às <?= h($f['saida']) ?></td><td><?= h($f['login']) ?></td><td><?= $f['ativo'] ? 'Ativo' : 'Inativo' ?></td><td><div class="linha-acoes">
+<a class="botao" href="index.php?pagina=consultas&amp;funcionario=<?= (int) $f['id'] ?>">Cadastro e pontos</a>
+<?php if ($f['ativo']): ?><form method="post"><?php campoCsrf(); ?><input type="hidden" name="id" value="<?= (int) $f['id'] ?>"><button name="acao" value="renovar-senha" class="secundario">Gerar nova senha</button></form><?php endif; ?>
+<form method="post"><?php campoCsrf(); ?><input type="hidden" name="id" value="<?= (int) $f['id'] ?>"><button name="acao" value="status" class="secundario"><?= $f['ativo'] ? 'Desativar acesso' : 'Ativar acesso' ?></button></form>
+</div></td></tr><?php endforeach; ?>
 </tbody></table></div><?php endif; ?></div>
 <?php else: ?><h1><?= $admin ? 'Histórico de pontos' : 'Meu ponto' ?></h1>
 <?php if ($selecionado): ?><div class="cadastro"><h2><?= h($selecionado['nome']) ?></h2><p><?= h($selecionado['cargo']) ?> · Admissão: <?= h(dataBr($selecionado['admissao'])) ?></p><p>Horário de trabalho: <?= h($selecionado['entrada']) ?> às <?= h($selecionado['saida']) ?></p><p>Login: <?= h($selecionado['login']) ?> · <?= $selecionado['ativo'] ? 'Ativo' : 'Inativo' ?></p></div><?php endif; ?>
 <?php if (!$admin): ?><p>Horário atual do servidor: <strong><?= h(date('d/m/Y H:i:s')) ?></strong> (São Paulo). Cada batida será salva no seu cadastro.</p>
-<div class="botoes-ponto"><?php foreach (proximosPontos(ultimoPonto((int) $usuario['id'])) as $tipo): ?><form method="post"><?php campoCsrf(); ?><input type="hidden" name="acao" value="ponto"><input type="hidden" name="tipo" value="<?= h($tipo) ?>"><input type="hidden" name="requisicao" value="<?= h(bin2hex(random_bytes(32))) ?>"><button>Registrar: <?= h($rotulos[$tipo]) ?></button></form><?php endforeach; ?></div><?php endif; ?>
+<div class="botoes-ponto"><?php foreach (proximosPontos(ultimoPonto((int) $usuario['id'])) as $tipo): ?><form method="post"><?php campoCsrf(); ?><input type="hidden" name="acao" value="ponto"><input type="hidden" name="tipo" value="<?= h($tipo) ?>"><input type="hidden" name="requisicao" value="<?= h(bin2hex(random_bytes(32))) ?>"><button>Bater ponto: <?= h($rotulos[$tipo]) ?></button></form><?php endforeach; ?></div><?php endif; ?>
 <form method="get" class="formulario filtro"><input type="hidden" name="pagina" value="<?= h($pagina) ?>">
 <?php if ($admin): ?><div class="campo largo"><label for="funcionario">Funcionário</label><select id="funcionario" name="funcionario"><option value="">Todos os funcionários</option><?php foreach ($funcionarios as $f): ?><option value="<?= (int) $f['id'] ?>" <?= (int) $f['id'] === $id ? 'selected' : '' ?>><?= h($f['nome']) ?></option><?php endforeach; ?></select></div><?php endif; ?>
 <div class="campo"><label for="de">De</label><input id="de" name="de" type="date" value="<?= h($_GET['de'] ?? '') ?>"></div><div class="campo"><label for="ate">Até</label><input id="ate" name="ate" type="date" value="<?= h($_GET['ate'] ?? '') ?>"></div>

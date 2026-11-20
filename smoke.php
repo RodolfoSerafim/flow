@@ -60,6 +60,19 @@ try {
         consultar("INSERT INTO usuarios (nome, cargo, admissao, entrada, saida, login, senha_hash, perfil) VALUES (?, ?, ?, ?, ?, ?, ?, 'colaborador')", $duplicado);
         throw new RuntimeException('Aceitou login duplicado com outra capitalização.');
     } catch (PDOException $e) { verificar((string) $e->getCode() === '23000', 'Erro inesperado ao validar duplicidade.'); }
+    $cadastroAutomatico = ['nome' => 'Funcionária Automática', 'cargo' => 'Recepcionista', 'admissao' => '2026-01-01', 'entrada' => '08:00', 'saida' => '17:00', 'login' => 'nao.usar', 'senha' => 'nao.usar'];
+    $acesso1 = cadastrarColaborador($cadastroAutomatico);
+    $acesso2 = cadastrarColaborador($cadastroAutomatico);
+    verificar($acesso1['login'] !== $acesso2['login'] && $acesso1['login'] !== 'nao.usar', 'Não gerou logins exclusivos automaticamente.');
+    verificar(strlen($acesso1['senha']) >= 16 && $acesso1['senha'] !== $acesso2['senha'], 'Não gerou senhas aleatórias independentes.');
+    $salvo = consultar('SELECT * FROM usuarios WHERE id = ?', [$acesso1['id']])->fetch();
+    verificar($salvo['senha_hash'] !== $acesso1['senha'] && password_verify($acesso1['senha'], $salvo['senha_hash']), 'A senha automática não foi armazenada apenas como hash.');
+    registrarPonto($acesso1['id'], 'entrada', bin2hex(random_bytes(32)));
+    $renovado = renovarSenhaColaborador($acesso1['id']);
+    $novoHash = consultar('SELECT senha_hash FROM usuarios WHERE id = ?', [$acesso1['id']])->fetchColumn();
+    verificar($renovado['login'] === $acesso1['login'] && !password_verify($acesso1['senha'], $novoHash) && password_verify($renovado['senha'], $novoHash), 'Renovação não substituiu a senha ou alterou o login.');
+    verificar((int) consultar('SELECT COUNT(*) FROM pontos WHERE usuario_id = ?', [$acesso1['id']])->fetchColumn() === 1, 'Renovação da senha alterou o histórico de pontos.');
+    deveFalhar(fn() => renovarSenhaColaborador($admin), 'Renovou a senha de um administrador pelo fluxo de funcionários.');
     fwrite(STDOUT, "OK: $verificacoes verificações passaram.\n");
 } catch (Throwable $e) {
     fwrite(STDERR, $e->getMessage() . "\n"); exit(1);

@@ -4,7 +4,8 @@ Sistema básico para uma empresa, usando PHP e SQLite. Não requer Composer nem 
 
 ## O que faz
 
-- A empresa cadastra nome, cargo, admissão, horário de entrada e saída, login e senha do colaborador.
+- A empresa cadastra nome, cargo, admissão e horário de entrada e saída. O sistema gera automaticamente um login exclusivo e uma senha aleatória para o colaborador.
+- Após salvar, a empresa usa **Copiar acesso do funcionário** para copiar a mensagem com link, login e senha e enviá-la ao funcionário. A senha aparece somente nesse momento; depois é possível usar **Gerar nova senha**. A renovação encerra as sessões antigas e preserva todos os pontos.
 - O colaborador entra com seu próprio acesso e registra entrada, saída para intervalo, retorno e saída. O intervalo é opcional: é possível sair diretamente após a entrada.
 - Cada batida fica vinculada ao funcionário, com data e hora do servidor no fuso America/Sao_Paulo. A sequência continua entre dias para permitir jornadas noturnas.
 - O colaborador consulta apenas seu histórico. O administrador consulta cadastro e pontos, filtra por período e exporta CSV.
@@ -31,7 +32,7 @@ Sistema básico para uma empresa, usando PHP e SQLite. Não requer Composer nem 
 
    Abra http://localhost:8000/index.php. Em produção use hospedagem PHP com HTTPS e banco em disco persistente. Configure a raiz pública do site para a pasta deste projeto, mantendo `flow-dados` fora dela. O relógio do servidor deve estar correto. Configure o índice para `index.php`; `.htaccess` já faz isso no Apache. No Nginx ou outro servidor, configure também o bloqueio de acesso HTTP a `schema.sql`, `bootstrap.php`, `console.php` e `smoke.php`.
 
-5. Entre como administrador, cadastre os funcionários e entregue a cada um o login e a senha definidos. Teste o acesso do colaborador em outra janela ou após sair da conta administrativa.
+5. Entre como administrador e cadastre um funcionário. Copie a mensagem com o acesso gerado automaticamente e envie a ele. O funcionário abre o link, entra com seu login e senha e clica em **Bater ponto: Entrada**. Os próximos botões acompanham a jornada: intervalo, retorno e saída. Para consultar como empresa, use **Funcionários → Cadastro e pontos** ao lado do nome. Teste o acesso do colaborador em outra janela ou após sair da conta administrativa.
 
 ## Banco de dados
 
@@ -52,7 +53,7 @@ Essa hospedagem oferece PHP e suporte a SQLite, mas não disponibiliza terminal 
 
 1. Crie uma conta gratuita na InfinityFree e escolha um subdomínio para o projeto. Ative o certificado SSL gratuito antes de configurar o acesso ao sistema.
 2. No seu computador, dentro do projeto, execute `php preparar-hospedagem.php`. Ele prepara a pasta protegida `data` e cria `config.local.php` com o caminho do banco e o hash de uma chave aleatória, mostrando a chave no terminal. A pasta de dados e a configuração privada estão excluídas do Git. O comando não sobrescreve uma configuração existente.
-3. Envie para `htdocs` apenas `.htaccess`, `bootstrap.php`, `config.local.php`, `index.php`, `instalar.php`, `schema.sql`, `style.css`, `logo-flow-erp.png` e a pasta `data` com seu `.htaccess` e `index.php`. Não envie `.git`, bancos locais, arquivos de teste ou o ZIP antigo.
+3. Envie para `htdocs` apenas `.htaccess`, `bootstrap.php`, `config.local.php`, `index.php`, `instalar.php`, `schema.sql`, `style.css`, `acesso.js`, `logo-flow-erp.png` e a pasta `data` com seu `.htaccess` e `index.php`. Não envie `.git`, bancos locais, arquivos de teste ou o ZIP antigo.
 4. O banco desta instalação será criado em `data/flow.sqlite`. O `.htaccess` da pasta bloqueia todo acesso HTTP e a regra da raiz também bloqueia arquivos SQLite. Antes de cadastrar dados reais, confirme que o acesso direto a `/data/`, `/data/flow.sqlite` e `/config.local.php` retorna 403 ou 404, sem conteúdo do arquivo.
 5. Acesse `https://seu-subdominio/instalar.php`, informe a chave e defina o login e a senha do administrador. O instalador se bloqueia assim que existe um administrador, inclusive para quem ainda possui a chave. Depois da conclusão, remova `instalar.php` do servidor.
 6. Acesse `index.php` e teste cadastro, acesso do colaborador e gravação de ponto. Mantenha cópias privadas do banco; os arquivos de dados não devem ser substituídos ao atualizar o código.
